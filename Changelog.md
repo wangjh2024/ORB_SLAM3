@@ -1,7 +1,7 @@
 # ORB-SLAM3
 Details of changes between the different versions.
 
-### V1.0, 22th December 2021
+### V1.0, 22th December 2  021
 
 - OpenCV static matrices changed to Eigen matrices. The average code speed-up is 16% in tracking and 19% in mapping, w.r.t. times reported in the ORB-SLAM3 paper.
 
