@@ -21,43 +21,44 @@ message(STATUS "Using C++11 standard.")
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
-# 001 手动设置OpenCV路径
+
+# 设置库路径
 set(OpenCV_DIR "E:/code/3rd_party/opencv/build")
-message(STATUS "OpenCV path: ${OpenCV_DIR}")
-# 手动配置OpenCV（因为配置文件可能在build根目录）
-set(OPENCV_INCLUDE_DIRS 
-    "E:/code/3rd_party/opencv/build/include"
-    "E:/code/3rd_party/opencv/build/include/opencv2"
-)
-set(OPENCV_LIB_DIR "E:/code/3rd_party/opencv/build/x64/vc16/lib")
-# 根据您的图片，使用opencv_world4100库
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(OpenCV_LIBS "${OPENCV_LIB_DIR}/opencv_world4100d.lib")
-else()
-    set(OpenCV_LIBS "${OPENCV_LIB_DIR}/opencv_world4100.lib")
-endif()
-set(OpenCV_FOUND TRUE)
-set(OpenCV_VERSION "4.1.0")
-message(STATUS "OpenCV version: ${OpenCV_VERSION}")
-message(STATUS "OpenCV include dirs: ${OPENCV_INCLUDE_DIRS}")
-message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
+set(Pangolin_DIR "E:/3rd_party/Pangolin/build")
 
-# 002 手动设置eigen3路径
-set(EIGEN3_INCLUDE_DIR "E:/code/3rd_party/eigen3")
-include_directories(${EIGEN3_INCLUDE_DIR})
-# find_package(Eigen3 3.1.0 REQUIRED)
-
-
+# 查找所有依赖
+find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(Threads REQUIRED)
 find_package(Pangolin REQUIRED)
+find_package(Boost REQUIRED COMPONENTS serialization system filesystem)
+
+# 验证找到的库
+if(NOT OpenCV_FOUND)
+    message(FATAL_ERROR "OpenCV not found! Check your OpenCV installation.")
+endif()
+
+if(NOT Pangolin_FOUND)
+    message(FATAL_ERROR "Pangolin not found! Check your Pangolin installation.")
+endif()
+
+message(STATUS "Dependencies found successfully!")
+
+
+
 find_package(realsense2)
 
+
+# 修改包含目录
 include_directories(
-${PROJECT_SOURCE_DIR}
-${PROJECT_SOURCE_DIR}/include
-${PROJECT_SOURCE_DIR}/include/CameraModels
-${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
-${EIGEN3_INCLUDE_DIR}
-${Pangolin_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/include/CameraModels
+    ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
+    ${EIGEN3_INCLUDE_DIR}
+    ${Pangolin_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}  # 使用 find_package 找到的路径
+    ${Boost_INCLUDE_DIRS}   # 添加 Boost 包含目录
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
@@ -124,15 +125,26 @@ include/Settings.h)
 
 add_subdirectory(Thirdparty/g2o)
 
+# target_link_libraries(${PROJECT_NAME}
+# ${OpenCV_LIBS}
+# ${EIGEN3_LIBS}
+# ${Pangolin_LIBRARIES}
+# ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
+# ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
+# -lboost_serialization
+# -lcrypto
+# )
+
+# 修改链接库
 target_link_libraries(${PROJECT_NAME}
-${OpenCV_LIBS}
-${EIGEN3_LIBS}
-${Pangolin_LIBRARIES}
-${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
-${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
--lboost_serialization
--lcrypto
+    ${OpenCV_LIBS}
+    ${Pangolin_LIBRARIES}
+    ${Boost_LIBRARIES}  # 添加 Boost 库
+    ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib
+    ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/g2o.lib
+    Threads::Threads
 )
+
 
 # If RealSense SDK is found the library is added and its examples compiled
 if(realsense2_FOUND)
@@ -397,3 +409,11 @@ if(realsense2_FOUND)
             Examples_old/Stereo-Inertial/stereo_inertial_realsense_D435i.cc)
     target_link_libraries(stereo_inertial_realsense_D435i_old ${PROJECT_NAME})
 endif()
+
+# 在 CMakeLists.txt 中添加测试
+message(STATUS "=== Dependency Check ===")
+message(STATUS "OpenCV_FOUND: ${OpenCV_FOUND}")
+message(STATUS "EIGEN3_FOUND: ${EIGEN3_FOUND}") 
+message(STATUS "Pangolin_FOUND: ${Pangolin_FOUND}")
+message(STATUS "Boost_FOUND: ${Boost_FOUND}")
+message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
