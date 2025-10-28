@@ -417,3 +417,5 @@ message(STATUS "EIGEN3_FOUND: ${EIGEN3_FOUND}")
 message(STATUS "Pangolin_FOUND: ${Pangolin_FOUND}")
 message(STATUS "Boost_FOUND: ${Boost_FOUND}")
 message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
+
+# cmake .. -DCMAKE_TOOLCHAIN_FILE=E:/3rd_party/vcpkg/scripts/buildsystems/vcpkg.cmake -DGLEW_ROOT_DIR=E:/3rd_party/vcpkg/installed/x64-windows -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=OFF -BUILD_TOOLS=OFF -DCMAKE_INSTALL_PREFIX=E:/3rd_party/Pangolin/install
