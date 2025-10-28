@@ -372,3 +372,5 @@ message(STATUS "Old examples: ${BUILD_OLD_EXAMPLES}")
 message(STATUS "=================================")
 
 # cmake .. -DCMAKE_TOOLCHAIN_FILE=E:/3rd_party/vcpkg/scripts/buildsystems/vcpkg.cmake -DGLEW_ROOT_DIR=E:/3rd_party/vcpkg/installed/x64-windows -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DCMAKE_INSTALL_PREFIX=E:/3rd_party/Pangolin/install -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+#  cmake .. -DCMAKE_TOOLCHAIN_FILE="E:/3rd_party/vcpkg/scripts/buildsystems/vcpkg.cmake"                              
