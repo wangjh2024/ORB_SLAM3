@@ -78,14 +78,33 @@ if(NOT DEFINED Pangolin_DIR)
 endif()
 
 # 查找 OpenCV
+set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
 find_package(OpenCV REQUIRED
     COMPONENTS core highgui imgproc imgcodecs calib3d features2d flann)
 
 # 查找 Eigen3
+
+# include_directories("E:/3rd_party/thirdparty_path/Eigen3.3.90")
+
+set(Eigen3_DIR "E:/3rd_party/eigen-install/share/eigen3/cmake")
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+include_directories(${EIGEN3_INCLUDE_DIRS})
+
+
+# find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 # 查找 Pangolin
-find_package(Pangolin REQUIRED)
+#=== 2. 指定 Pangolin 安装包的查找路径（关键） ===
+#   Pangolin 安装后会生成 PangolinConfig.cmake，一般在：
+#   E:/3rd_party/pangolin-install/lib/cmake/Pangolin
+#   或者 E:/3rd_party/pangolin-install/cmake
+set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
+
+# 也可以用 CMAKE_PREFIX_PATH，更通用（两者选其一即可）
+# list(APPEND CMAKE_PREFIX_PATH "E:/3rd_party/pangolin-install")
+
+#=== 3. 查找依赖 ===
+find_package(Pangolin REQUIRED)         # 提供目标 Pangolin::pangolin
 
 # 查找 Boost
 find_package(Boost REQUIRED COMPONENTS serialization system filesystem)
