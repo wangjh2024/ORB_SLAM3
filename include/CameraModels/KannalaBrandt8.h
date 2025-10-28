@@ -19,6 +19,8 @@
 #ifndef CAMERAMODELS_KANNALABRANDT8_H
 #define CAMERAMODELS_KANNALABRANDT8_H
 
+#include "win_compat_undef_access.h"
+#include <boost/serialization/access.hpp>  // ½¨ÒéÏÔÊ½°üº¬
 
 #include <assert.h>
 
@@ -26,8 +28,8 @@
 #include <boost/serialization/access.hpp>
 
 #include "TwoViewReconstruction.h"
-#include <boost/serialization/access.hpp>  // æ·»åŠ è¿™è¡Œ
-#include <boost/serialization/serialization.hpp>  // å¯èƒ½ä¹Ÿéœ€è¦è¿™è¡?
+#include <boost/serialization/access.hpp>  // æ·»åŠ è¿™è??
+#include <boost/serialization/serialization.hpp>  // å?èƒ½ä¹Ÿéœ€è¦è¿™è¡?
 
 namespace ORB_SLAM3 {
 	class KannalaBrandt8 : public GeometricCamera {

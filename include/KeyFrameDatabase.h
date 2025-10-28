@@ -33,6 +33,8 @@
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/list.hpp>
 #include <boost/serialization/access.hpp>
+#include "win_compat_undef_access.h"
+#include <boost/serialization/access.hpp>  // 建议显式包含
 
 #include<mutex>
 

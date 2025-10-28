@@ -25,6 +25,8 @@
 #include <boost/serialization/access.hpp>
 
 #include "TwoViewReconstruction.h"
+#include "win_compat_undef_access.h"
+#include <boost/serialization/access.hpp>  // 建议显式包含
 
 namespace ORB_SLAM3 {
     class Pinhole : public GeometricCamera {
