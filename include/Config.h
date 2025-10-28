@@ -19,12 +19,19 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <unistd.h>
+//#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
-
+#ifdef _WIN32
+#include <cstdint>
+#include <io.h>
+#include <direct.h>
+#else
+#include <unistd.h>
+#include <stdint-gcc.h>
+#endif
 namespace ORB_SLAM3
 {
 

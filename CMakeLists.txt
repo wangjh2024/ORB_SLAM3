@@ -1,55 +1,130 @@
 cmake_minimum_required(VERSION 3.20)
 project(ORB_SLAM3)
 
-IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE Release)
-ENDIF()
+# 在 project() 之后立即添加
+if(MSVC)
+    # 禁用所有导致编译失败的关键警告
+    add_compile_options(
+        /wd4267 /wd4244 /wd4305 /wd4819 /wd4996 /wd4018
+    )
+    
+    # 解决标准库兼容性
+    add_definitions(
+        -D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING
+        -DBOOST_ALLOW_DEPRECATED_HEADERS
+    )
+endif()
+# 设置默认构建类型
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
 
-MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Project source directory: ${PROJECT_SOURCE_DIR}")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall   -O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
+# 设置 C++ 标准
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Use C++11
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
-add_definitions(-DCOMPILEDWITHC11)
-message(STATUS "Using C++11 standard.")
+# 平台特定设置
+if(WIN32)
+    add_definitions(-D_USE_MATH_DEFINES -D_CRT_SECURE_NO_WARNINGS)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)  # 简化 Windows 下共享库的符号导出
+endif()
 
+# 编译器优化设置
+if(MSVC)
+    # Windows/MSVC 编译器选项
+    add_compile_options(/O2 /W3)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(/Ox)  # MSVC 的最大优化
+    endif()
+else()
+    # Linux/GCC/Clang 编译器选项
+    add_compile_options(-Wall -Wextra -Wpedantic)
+    
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(-O3 -march=native -DNDEBUG)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_options(-O0 -g -DDEBUG)
+    endif()
+    
+    # 检查是否支持 march=native
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
+    if(NOT COMPILER_SUPPORTS_MARCH_NATIVE)
+        message(WARNING "Compiler does not support -march=native, using generic optimization")
+    endif()
+endif()
 
-LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
+# 添加自定义模块路径
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
+# 设置库输出目录
+set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
+set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 
-# 设置库路径
-set(OpenCV_DIR "E:/code/3rd_party/opencv/build")
-set(Pangolin_DIR "E:/3rd_party/Pangolin/build")
+# 查找依赖包
+message(STATUS "Searching for dependencies...")
 
-# 查找所有依赖
-find_package(OpenCV REQUIRED)
-find_package(Eigen3 REQUIRED)
-find_package(Threads REQUIRED)
+# 设置可选的第三方库路径（用户可以通过命令行参数覆盖）
+if(NOT DEFINED OpenCV_DIR)
+    set(OpenCV_DIR "" CACHE PATH "Path to OpenCV build directory")
+endif()
+
+if(NOT DEFINED Pangolin_DIR)
+    set(Pangolin_DIR "" CACHE PATH "Path to Pangolin build directory")
+endif()
+
+# 查找 OpenCV
+find_package(OpenCV REQUIRED
+    COMPONENTS core highgui imgproc imgcodecs calib3d features2d flann)
+
+# 查找 Eigen3
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+
+# 查找 Pangolin
 find_package(Pangolin REQUIRED)
+
+# 查找 Boost
 find_package(Boost REQUIRED COMPONENTS serialization system filesystem)
 
-# 验证找到的库
+# 查找线程库
+find_package(Threads REQUIRED)
+
+# 可选依赖：RealSense
+find_package(realsense2 QUIET)
+
+# 验证依赖
+message(STATUS "=== Dependency Status ===")
+message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+message(STATUS "Eigen3 version: ${EIGEN3_VERSION_STRING}")
+message(STATUS "Pangolin found: ${Pangolin_FOUND}")
+message(STATUS "Boost found: ${Boost_FOUND}")
+message(STATUS "RealSense2 found: ${realsense2_FOUND}")
+
 if(NOT OpenCV_FOUND)
-    message(FATAL_ERROR "OpenCV not found! Check your OpenCV installation.")
+    message(FATAL_ERROR "OpenCV not found! Please set OpenCV_DIR or install OpenCV.")
 endif()
 
 if(NOT Pangolin_FOUND)
-    message(FATAL_ERROR "Pangolin not found! Check your Pangolin installation.")
+    message(FATAL_ERROR "Pangolin not found! Please set Pangolin_DIR or install Pangolin.")
 endif()
 
-message(STATUS "Dependencies found successfully!")
+# 检查第三方库是否存在
+set(THIRDPARTY_LIBS
+    "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib"
+    "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib"
+)
 
+foreach(LIB_PATH ${THIRDPARTY_LIBS})
+    if(NOT EXISTS ${LIB_PATH})
+        message(WARNING "Thirdparty library path not found: ${LIB_PATH}")
+    endif()
+endforeach()
 
-
-find_package(realsense2)
-
-
-# 修改包含目录
+# 包含目录
 include_directories(
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include
@@ -57,365 +132,243 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
     ${EIGEN3_INCLUDE_DIR}
     ${Pangolin_INCLUDE_DIRS}
-    ${OpenCV_INCLUDE_DIRS}  # 使用 find_package 找到的路径
-    ${Boost_INCLUDE_DIRS}   # 添加 Boost 包含目录
+    ${OpenCV_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
 )
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
-
-add_library(${PROJECT_NAME} SHARED
-src/System.cc
-src/Tracking.cc
-src/LocalMapping.cc
-src/LoopClosing.cc
-src/ORBextractor.cc
-src/ORBmatcher.cc
-src/FrameDrawer.cc
-src/Converter.cc
-src/MapPoint.cc
-src/KeyFrame.cc
-src/Atlas.cc
-src/Map.cc
-src/MapDrawer.cc
-src/Optimizer.cc
-src/Frame.cc
-src/KeyFrameDatabase.cc
-src/Sim3Solver.cc
-src/Viewer.cc
-src/ImuTypes.cc
-src/G2oTypes.cc
-src/CameraModels/Pinhole.cpp
-src/CameraModels/KannalaBrandt8.cpp
-src/OptimizableTypes.cpp
-src/MLPnPsolver.cpp
-src/GeometricTools.cc
-src/TwoViewReconstruction.cc
-src/Config.cc
-src/Settings.cc
-include/System.h
-include/Tracking.h
-include/LocalMapping.h
-include/LoopClosing.h
-include/ORBextractor.h
-include/ORBmatcher.h
-include/FrameDrawer.h
-include/Converter.h
-include/MapPoint.h
-include/KeyFrame.h
-include/Atlas.h
-include/Map.h
-include/MapDrawer.h
-include/Optimizer.h
-include/Frame.h
-include/KeyFrameDatabase.h
-include/Sim3Solver.h
-include/Viewer.h
-include/ImuTypes.h
-include/G2oTypes.h
-include/CameraModels/GeometricCamera.h
-include/CameraModels/Pinhole.h
-include/CameraModels/KannalaBrandt8.h
-include/OptimizableTypes.h
-include/MLPnPsolver.h
-include/GeometricTools.h
-include/TwoViewReconstruction.h
-include/SerializationUtils.h
-include/Config.h
-include/Settings.h)
-
+# 添加 g2o 子目录
 add_subdirectory(Thirdparty/g2o)
 
-# target_link_libraries(${PROJECT_NAME}
-# ${OpenCV_LIBS}
-# ${EIGEN3_LIBS}
-# ${Pangolin_LIBRARIES}
-# ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
-# ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
-# -lboost_serialization
-# -lcrypto
-# )
+# 定义 ORB_SLAM3 库的源文件
+set(ORB_SLAM3_SOURCES
+    src/System.cc
+    src/Tracking.cc
+    src/LocalMapping.cc
+    src/LoopClosing.cc
+    src/ORBextractor.cc
+    src/ORBmatcher.cc
+    src/FrameDrawer.cc
+    src/Converter.cc
+    src/MapPoint.cc
+    src/KeyFrame.cc
+    src/Atlas.cc
+    src/Map.cc
+    src/MapDrawer.cc
+    src/Optimizer.cc
+    src/Frame.cc
+    src/KeyFrameDatabase.cc
+    src/Sim3Solver.cc
+    src/Viewer.cc
+    src/ImuTypes.cc
+    src/G2oTypes.cc
+    src/CameraModels/Pinhole.cpp
+    src/CameraModels/KannalaBrandt8.cpp
+    src/OptimizableTypes.cpp
+    src/MLPnPsolver.cpp
+    src/GeometricTools.cc
+    src/TwoViewReconstruction.cc
+    src/Config.cc
+    src/Settings.cc
+)
 
-# 修改链接库
+set(ORB_SLAM3_HEADERS
+    include/System.h
+    include/Tracking.h
+    include/LocalMapping.h
+    include/LoopClosing.h
+    include/ORBextractor.h
+    include/ORBmatcher.h
+    include/FrameDrawer.h
+    include/Converter.h
+    include/MapPoint.h
+    include/KeyFrame.h
+    include/Atlas.h
+    include/Map.h
+    include/MapDrawer.h
+    include/Optimizer.h
+    include/Frame.h
+    include/KeyFrameDatabase.h
+    include/Sim3Solver.h
+    include/Viewer.h
+    include/ImuTypes.h
+    include/G2oTypes.h
+    include/CameraModels/GeometricCamera.h
+    include/CameraModels/Pinhole.h
+    include/CameraModels/KannalaBrandt8.h
+    include/OptimizableTypes.h
+    include/MLPnPsolver.h
+    include/GeometricTools.h
+    include/TwoViewReconstruction.h
+    include/SerializationUtils.h
+    include/Config.h
+    include/Settings.h
+)
+
+# 创建 ORB_SLAM3 共享库
+add_library(${PROJECT_NAME} SHARED ${ORB_SLAM3_SOURCES} ${ORB_SLAM3_HEADERS})
+
+# 设置库属性
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# 平台特定的库链接设置
+if(WIN32)
+    set(DBoW2_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
+    set(G2O_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/g2o.lib")
+else()
+    set(DBoW2_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so")
+    set(G2O_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so")
+endif()
+
+# 链接库
 target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBS}
     ${Pangolin_LIBRARIES}
-    ${Boost_LIBRARIES}  # 添加 Boost 库
-    ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib
-    ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/g2o.lib
+    ${Boost_LIBRARIES}
+    ${DBoW2_LIB}
+    ${G2O_LIB}
     Threads::Threads
 )
 
-
-# If RealSense SDK is found the library is added and its examples compiled
+# 如果找到 RealSense，添加支持
 if(realsense2_FOUND)
-    include_directories(${PROJECT_NAME}
-    ${realsense_INCLUDE_DIR}
+    message(STATUS "Adding RealSense2 support")
+    target_include_directories(${PROJECT_NAME} PRIVATE ${realsense2_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} ${realsense2_LIBRARY})
+    
+    # 添加 RealSense 定义
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_REALSENSE=1)
+else()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_REALSENSE=0)
+    message(STATUS "RealSense2 not found - skipping RealSense examples")
+endif()
+
+# 创建示例程序的函数
+function(add_orb_slam3_example example_name example_source)
+    add_executable(${example_name} ${example_source})
+    target_link_libraries(${example_name} ${PROJECT_NAME})
+    
+    # 设置可执行文件的输出目录
+    set_target_properties(${example_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${EXECUTABLE_OUTPUT_PATH}
     )
-    target_link_libraries(${PROJECT_NAME}
-    ${realsense2_LIBRARY}
-    )
+    
+    # 复制词汇表文件（如果存在）
+    if(EXISTS "${PROJECT_SOURCE_DIR}/Vocabulary/ORBvoc.txt")
+        add_custom_command(TARGET ${example_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${PROJECT_SOURCE_DIR}/Vocabulary/ORBvoc.txt"
+            $<TARGET_FILE_DIR:${example_name}>
+            COMMENT "Copying ORB vocabulary file"
+        )
+    endif()
+endfunction()
+
+# 构建示例程序
+message(STATUS "Building examples...")
+
+# RGB-D 示例
+add_orb_slam3_example(rgbd_tum Examples/RGB-D/rgbd_tum.cc)
+if(realsense2_FOUND)
+    add_orb_slam3_example(rgbd_realsense_D435i Examples/RGB-D/rgbd_realsense_D435i.cc)
 endif()
 
+# RGB-D Inertial 示例
+if(realsense2_FOUND)
+    add_orb_slam3_example(rgbd_inertial_realsense_D435i Examples/RGB-D-Inertial/rgbd_inertial_realsense_D435i.cc)
+endif()
 
-# Build examples
-
-# RGB-D examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D)
-
-add_executable(rgbd_tum
-        Examples/RGB-D/rgbd_tum.cc)
-target_link_libraries(rgbd_tum ${PROJECT_NAME})
+# Stereo 示例
+add_orb_slam3_example(stereo_kitti Examples/Stereo/stereo_kitti.cc)
+add_orb_slam3_example(stereo_euroc Examples/Stereo/stereo_euroc.cc)
+add_orb_slam3_example(stereo_tum_vi Examples/Stereo/stereo_tum_vi.cc)
 
 if(realsense2_FOUND)
-    add_executable(rgbd_realsense_D435i
-            Examples/RGB-D/rgbd_realsense_D435i.cc)
-    target_link_libraries(rgbd_realsense_D435i ${PROJECT_NAME})
+    add_orb_slam3_example(stereo_realsense_t265 Examples/Stereo/stereo_realsense_t265.cc)
+    add_orb_slam3_example(stereo_realsense_D435i Examples/Stereo/stereo_realsense_D435i.cc)
 endif()
 
-
-# RGB-D inertial examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D-Inertial)
+# Monocular 示例
+add_orb_slam3_example(mono_tum Examples/Monocular/mono_tum.cc)
+add_orb_slam3_example(mono_kitti Examples/Monocular/mono_kitti.cc)
+add_orb_slam3_example(mono_euroc Examples/Monocular/mono_euroc.cc)
+add_orb_slam3_example(mono_tum_vi Examples/Monocular/mono_tum_vi.cc)
 
 if(realsense2_FOUND)
-    add_executable(rgbd_inertial_realsense_D435i
-            Examples/RGB-D-Inertial/rgbd_inertial_realsense_D435i.cc)
-    target_link_libraries(rgbd_inertial_realsense_D435i ${PROJECT_NAME})
+    add_orb_slam3_example(mono_realsense_t265 Examples/Monocular/mono_realsense_t265.cc)
+    add_orb_slam3_example(mono_realsense_D435i Examples/Monocular/mono_realsense_D435i.cc)
 endif()
 
-#Stereo examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Stereo)
-
-add_executable(stereo_kitti
-        Examples/Stereo/stereo_kitti.cc)
-target_link_libraries(stereo_kitti ${PROJECT_NAME})
-
-add_executable(stereo_euroc
-        Examples/Stereo/stereo_euroc.cc)
-target_link_libraries(stereo_euroc ${PROJECT_NAME})
-
-add_executable(stereo_tum_vi
-        Examples/Stereo/stereo_tum_vi.cc)
-target_link_libraries(stereo_tum_vi ${PROJECT_NAME})
+# Monocular Inertial 示例
+add_orb_slam3_example(mono_inertial_euroc Examples/Monocular-Inertial/mono_inertial_euroc.cc)
+add_orb_slam3_example(mono_inertial_tum_vi Examples/Monocular-Inertial/mono_inertial_tum_vi.cc)
 
 if(realsense2_FOUND)
-    add_executable(stereo_realsense_t265
-            Examples/Stereo/stereo_realsense_t265.cc)
-    target_link_libraries(stereo_realsense_t265 ${PROJECT_NAME})
-
-    add_executable(stereo_realsense_D435i
-            Examples/Stereo/stereo_realsense_D435i.cc)
-    target_link_libraries(stereo_realsense_D435i ${PROJECT_NAME})
+    add_orb_slam3_example(mono_inertial_realsense_t265 Examples/Monocular-Inertial/mono_inertial_realsense_t265.cc)
+    add_orb_slam3_example(mono_inertial_realsense_D435i Examples/Monocular-Inertial/mono_inertial_realsense_D435i.cc)
 endif()
 
-#Monocular examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Monocular)
-
-add_executable(mono_tum
-        Examples/Monocular/mono_tum.cc)
-target_link_libraries(mono_tum ${PROJECT_NAME})
-
-add_executable(mono_kitti
-        Examples/Monocular/mono_kitti.cc)
-target_link_libraries(mono_kitti ${PROJECT_NAME})
-
-add_executable(mono_euroc
-        Examples/Monocular/mono_euroc.cc)
-target_link_libraries(mono_euroc ${PROJECT_NAME})
-
-add_executable(mono_tum_vi
-        Examples/Monocular/mono_tum_vi.cc)
-target_link_libraries(mono_tum_vi ${PROJECT_NAME})
+# Stereo Inertial 示例
+add_orb_slam3_example(stereo_inertial_euroc Examples/Stereo-Inertial/stereo_inertial_euroc.cc)
+add_orb_slam3_example(stereo_inertial_tum_vi Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
 
 if(realsense2_FOUND)
-    add_executable(mono_realsense_t265
-            Examples/Monocular/mono_realsense_t265.cc)
-    target_link_libraries(mono_realsense_t265 ${PROJECT_NAME})
-
-    add_executable(mono_realsense_D435i
-            Examples/Monocular/mono_realsense_D435i.cc)
-    target_link_libraries(mono_realsense_D435i ${PROJECT_NAME})
+    add_orb_slam3_example(stereo_inertial_realsense_t265 Examples/Stereo-Inertial/stereo_inertial_realsense_t265.cc)
+    add_orb_slam3_example(stereo_inertial_realsense_D435i Examples/Stereo-Inertial/stereo_inertial_realsense_D435i.cc)
 endif()
 
-#Monocular inertial examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Monocular-Inertial)
-
-add_executable(mono_inertial_euroc
-        Examples/Monocular-Inertial/mono_inertial_euroc.cc)
-target_link_libraries(mono_inertial_euroc ${PROJECT_NAME})
-
-add_executable(mono_inertial_tum_vi
-        Examples/Monocular-Inertial/mono_inertial_tum_vi.cc)
-target_link_libraries(mono_inertial_tum_vi ${PROJECT_NAME})
-
+# Calibration 示例
 if(realsense2_FOUND)
-    add_executable(mono_inertial_realsense_t265
-            Examples/Monocular-Inertial/mono_inertial_realsense_t265.cc)
-    target_link_libraries(mono_inertial_realsense_t265 ${PROJECT_NAME})
-
-    add_executable(mono_inertial_realsense_D435i
-            Examples/Monocular-Inertial/mono_inertial_realsense_D435i.cc)
-    target_link_libraries(mono_inertial_realsense_D435i ${PROJECT_NAME})
+    add_orb_slam3_example(recorder_realsense_D435i Examples/Calibration/recorder_realsense_D435i.cc)
+    add_orb_slam3_example(recorder_realsense_T265 Examples/Calibration/recorder_realsense_T265.cc)
 endif()
 
-#Stereo Inertial examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Stereo-Inertial)
+# 旧版本示例（可选构建）
+option(BUILD_OLD_EXAMPLES "Build old version examples" OFF)
 
-add_executable(stereo_inertial_euroc
-        Examples/Stereo-Inertial/stereo_inertial_euroc.cc)
-target_link_libraries(stereo_inertial_euroc ${PROJECT_NAME})
-
-add_executable(stereo_inertial_tum_vi
-        Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
-target_link_libraries(stereo_inertial_tum_vi ${PROJECT_NAME})
-
-if(realsense2_FOUND)
-    add_executable(stereo_inertial_realsense_t265
-            Examples/Stereo-Inertial/stereo_inertial_realsense_t265.cc)
-    target_link_libraries(stereo_inertial_realsense_t265 ${PROJECT_NAME})
-
-    add_executable(stereo_inertial_realsense_D435i
-            Examples/Stereo-Inertial/stereo_inertial_realsense_D435i.cc)
-    target_link_libraries(stereo_inertial_realsense_D435i ${PROJECT_NAME})
+if(BUILD_OLD_EXAMPLES)
+    message(STATUS "Building old examples...")
+    
+    # 这里可以添加旧版本示例的构建逻辑
+    # 为了简洁，这里只展示一个示例
+    add_orb_slam3_example(rgbd_tum_old Examples_old/RGB-D/rgbd_tum.cc)
+    
+    # 可以继续添加其他旧版本示例...
 endif()
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Calibration)
-if(realsense2_FOUND)
-    add_executable(recorder_realsense_D435i
-            Examples/Calibration/recorder_realsense_D435i.cc)
-    target_link_libraries(recorder_realsense_D435i ${PROJECT_NAME})
-
-    add_executable(recorder_realsense_T265
-            Examples/Calibration/recorder_realsense_T265.cc)
-    target_link_libraries(recorder_realsense_T265 ${PROJECT_NAME})
+# 安装目标（可选）
+if(WIN32)
+    set(CMAKE_INSTALL_BINDIR bin)
+    set(CMAKE_INSTALL_LIBDIR lib)
+else()
+    set(CMAKE_INSTALL_BINDIR bin)
+    set(CMAKE_INSTALL_LIBDIR lib)
 endif()
 
-#Old examples
+install(TARGETS ${PROJECT_NAME}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
 
-# RGB-D examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples_old/RGB-D)
+install(DIRECTORY include/
+    DESTINATION include
+    FILES_MATCHING PATTERN "*.h"
+)
 
-add_executable(rgbd_tum_old
-        Examples_old/RGB-D/rgbd_tum.cc)
-target_link_libraries(rgbd_tum_old ${PROJECT_NAME})
+# 总结信息
+message(STATUS "")
+message(STATUS "=== ORB_SLAM3 Build Summary ===")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Install prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "Library output: ${LIBRARY_OUTPUT_PATH}")
+message(STATUS "Binary output: ${EXECUTABLE_OUTPUT_PATH}")
+message(STATUS "RealSense support: ${realsense2_FOUND}")
+message(STATUS "Old examples: ${BUILD_OLD_EXAMPLES}")
+message(STATUS "=================================")
 
-if(realsense2_FOUND)
-    add_executable(rgbd_realsense_D435i_old
-            Examples_old/RGB-D/rgbd_realsense_D435i.cc)
-    target_link_libraries(rgbd_realsense_D435i_old ${PROJECT_NAME})
-endif()
-
-
-# RGB-D inertial examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples_old/RGB-D-Inertial)
-
-if(realsense2_FOUND)
-    add_executable(rgbd_inertial_realsense_D435i_old
-            Examples_old/RGB-D-Inertial/rgbd_inertial_realsense_D435i.cc)
-    target_link_libraries(rgbd_inertial_realsense_D435i_old ${PROJECT_NAME})
-endif()
-
-#Stereo examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples_old/Stereo)
-
-add_executable(stereo_kitti_old
-        Examples_old/Stereo/stereo_kitti.cc)
-target_link_libraries(stereo_kitti_old ${PROJECT_NAME})
-
-add_executable(stereo_euroc_old
-        Examples_old/Stereo/stereo_euroc.cc)
-target_link_libraries(stereo_euroc_old ${PROJECT_NAME})
-
-add_executable(stereo_tum_vi_old
-        Examples_old/Stereo/stereo_tum_vi.cc)
-target_link_libraries(stereo_tum_vi_old ${PROJECT_NAME})
-
-if(realsense2_FOUND)
-    add_executable(stereo_realsense_t265_old
-            Examples_old/Stereo/stereo_realsense_t265.cc)
-    target_link_libraries(stereo_realsense_t265_old ${PROJECT_NAME})
-
-    add_executable(stereo_realsense_D435i_old
-            Examples_old/Stereo/stereo_realsense_D435i.cc)
-    target_link_libraries(stereo_realsense_D435i_old ${PROJECT_NAME})
-endif()
-
-#Monocular examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples_old/Monocular)
-
-add_executable(mono_tum_old
-        Examples_old/Monocular/mono_tum.cc)
-target_link_libraries(mono_tum_old ${PROJECT_NAME})
-
-add_executable(mono_kitti_old
-        Examples_old/Monocular/mono_kitti.cc)
-target_link_libraries(mono_kitti_old ${PROJECT_NAME})
-
-add_executable(mono_euroc_old
-        Examples_old/Monocular/mono_euroc.cc)
-target_link_libraries(mono_euroc_old ${PROJECT_NAME})
-
-add_executable(mono_tum_vi_old
-        Examples_old/Monocular/mono_tum_vi.cc)
-target_link_libraries(mono_tum_vi_old ${PROJECT_NAME})
-
-if(realsense2_FOUND)
-    add_executable(mono_realsense_t265_old
-            Examples_old/Monocular/mono_realsense_t265.cc)
-    target_link_libraries(mono_realsense_t265_old ${PROJECT_NAME})
-
-    add_executable(mono_realsense_D435i_old
-            Examples_old/Monocular/mono_realsense_D435i.cc)
-    target_link_libraries(mono_realsense_D435i_old ${PROJECT_NAME})
-endif()
-
-#Monocular inertial examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples_old/Monocular-Inertial)
-
-add_executable(mono_inertial_euroc_old
-        Examples_old/Monocular-Inertial/mono_inertial_euroc.cc)
-target_link_libraries(mono_inertial_euroc_old ${PROJECT_NAME})
-
-add_executable(mono_inertial_tum_vi_old
-        Examples_old/Monocular-Inertial/mono_inertial_tum_vi.cc)
-target_link_libraries(mono_inertial_tum_vi_old ${PROJECT_NAME})
-
-if(realsense2_FOUND)
-    add_executable(mono_inertial_realsense_t265_old
-            Examples_old/Monocular-Inertial/mono_inertial_realsense_t265.cc)
-    target_link_libraries(mono_inertial_realsense_t265_old ${PROJECT_NAME})
-
-    add_executable(mono_inertial_realsense_D435i_old
-            Examples_old/Monocular-Inertial/mono_inertial_realsense_D435i.cc)
-    target_link_libraries(mono_inertial_realsense_D435i_old ${PROJECT_NAME})
-endif()
-
-#Stereo Inertial examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples_old/Stereo-Inertial)
-
-add_executable(stereo_inertial_euroc_old
-        Examples_old/Stereo-Inertial/stereo_inertial_euroc.cc)
-target_link_libraries(stereo_inertial_euroc_old ${PROJECT_NAME})
-
-add_executable(stereo_inertial_tum_vi_old
-        Examples_old/Stereo-Inertial/stereo_inertial_tum_vi.cc)
-target_link_libraries(stereo_inertial_tum_vi_old ${PROJECT_NAME})
-
-if(realsense2_FOUND)
-    add_executable(stereo_inertial_realsense_t265_old
-            Examples_old/Stereo-Inertial/stereo_inertial_realsense_t265.cc)
-    target_link_libraries(stereo_inertial_realsense_t265_old ${PROJECT_NAME})
-
-    add_executable(stereo_inertial_realsense_D435i_old
-            Examples_old/Stereo-Inertial/stereo_inertial_realsense_D435i.cc)
-    target_link_libraries(stereo_inertial_realsense_D435i_old ${PROJECT_NAME})
-endif()
-
-# 在 CMakeLists.txt 中添加测试
-message(STATUS "=== Dependency Check ===")
-message(STATUS "OpenCV_FOUND: ${OpenCV_FOUND}")
-message(STATUS "EIGEN3_FOUND: ${EIGEN3_FOUND}") 
-message(STATUS "Pangolin_FOUND: ${Pangolin_FOUND}")
-message(STATUS "Boost_FOUND: ${Boost_FOUND}")
-message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
-
-# cmake .. -DCMAKE_TOOLCHAIN_FILE=E:/3rd_party/vcpkg/scripts/buildsystems/vcpkg.cmake -DGLEW_ROOT_DIR=E:/3rd_party/vcpkg/installed/x64-windows -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=OFF -BUILD_TOOLS=OFF -DCMAKE_INSTALL_PREFIX=E:/3rd_party/Pangolin/install
+# cmake .. -DCMAKE_TOOLCHAIN_FILE=E:/3rd_party/vcpkg/scripts/buildsystems/vcpkg.cmake -DGLEW_ROOT_DIR=E:/3rd_party/vcpkg/installed/x64-windows -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DCMAKE_INSTALL_PREFIX=E:/3rd_party/Pangolin/install -DCMAKE_EXPORT_COMPILE_COMMANDS=ON

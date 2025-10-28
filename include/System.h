@@ -21,7 +21,27 @@
 #define SYSTEM_H
 
 
-#include <unistd.h>
+#ifdef _WIN32
+    #include <io.h>
+    #include <process.h>
+#else
+    #include <unistd.h>
+#endif
+
+#ifdef _WIN32
+    #include <io.h>
+    #include <process.h>
+    #define access _access
+    #define F_OK 0
+#else
+    #ifdef _WIN32
+    #include <io.h>
+    #include <process.h>
+#else
+    #include <unistd.h>
+#endif
+#endif
+
 #include<stdio.h>
 #include<stdlib.h>
 #include<string>

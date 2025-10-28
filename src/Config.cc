@@ -19,12 +19,33 @@
 
 #include "Config.h"
 
+#ifdef _WIN32
+#include <cstdint>
+#include <io.h>
+#include <direct.h>
+#include <windows.h>
+#define sleep(seconds) Sleep((seconds) * 1000)
+#else
+#include <unistd.h>
+#include <stdint-gcc.h>
+#endif
+
+#include <chrono>
+#include <thread>
+
+// 跨平台usleep替代
+inline void portable_usleep(int microseconds) {
+	std::this_thread::sleep_for(std::chrono::microseconds(microseconds));
+}
+
+
+
 namespace ORB_SLAM3
 {
 
-bool ConfigParser::ParseConfigFile(std::string &strConfigFile)
-{
-    return true;
-}
+	bool ConfigParser::ParseConfigFile(std::string& strConfigFile)
+	{
+		return true;
+	}
 
 }

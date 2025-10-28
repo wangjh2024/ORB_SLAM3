@@ -25,7 +25,28 @@
 
 #include "CameraModels/GeometricCamera.h"
 
-#include <unistd.h>
+#ifdef _WIN32
+    #include <io.h>
+    #include <process.h>
+#else
+    #include <unistd.h>
+#endif
+#ifdef _WIN32
+    #include <direct.h>
+    #include <io.h>
+    #define access _access
+    #define F_OK 0
+    #define R_OK 4
+    #define W_OK 2
+    #define X_OK 1
+#else
+    #ifdef _WIN32
+    #include <io.h>
+    #include <process.h>
+#else
+    #include <unistd.h>
+#endif
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
