@@ -48,6 +48,7 @@ message("OpenCV version: ${OpenCV_VERSION}")
 set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
 include_directories(${EIGEN3_INCLUDE_DIR})
 find_package(Eigen3 REQUIRED)
+
 find_package(Threads REQUIRED)
 
 #=== 5. Pangolin ===
