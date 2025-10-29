@@ -28,10 +28,17 @@
 
 #include <set>
 #include <mutex>
+
+#ifdef access
+#  undef access
+#endif
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/export.hpp>
 
 #include <boost/serialization/serialization.hpp>
+
+
+
 #include <boost/serialization/access.hpp>
 
 namespace ORB_SLAM3

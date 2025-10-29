@@ -6,7 +6,7 @@ set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
 set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
 set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
 set(Pangolin_INCLUDE_DIRS "E:/3rd_party/pangolin-install/include")
-set(BOOST_ROOT "E:/3rd_party/boost17")
+# set(BOOST_ROOT "E:/3rd_party/boost17")
 set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
 set(DBoW2_LIB  "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
 set(G2O_LIB    "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/g2o.lib")
@@ -110,14 +110,37 @@ else()
     INTERFACE_LINK_LIBRARIES "${PANGOLIN_LIBS};OpenGL::GL;${GLEW_LIB_TARGET}")
 endif()
 
-#=== 11. 依赖：Boost（serialization） ===
-find_package(Boost REQUIRED COMPONENTS serialization)
-if(Boost_FOUND)
-  message(STATUS "Boost Found: ${Boost_VERSION}")
-  include_directories(${Boost_INCLUDE_DIRS})
+
+# === 0. 手工指定 Boost 头文件与库目录 ===
+# === 0. 指定 Boost 位置（自动兼容是否带版本子目录） ===
+set(BOOST_ROOT "E:/3rd_party/PCL_1130/3rdParty/Boost")
+if (EXISTS "${BOOST_ROOT}/include/boost-1_80")
+  set(BOOST_INCLUDEDIR  "${BOOST_ROOT}/include/boost-1_80")  # 这一层里面应当直接有 boost/
 else()
-  message(FATAL_ERROR "Boost not found.")
+  set(BOOST_INCLUDEDIR  "${BOOST_ROOT}/include")
 endif()
+set(BOOST_LIBRARYDIR  "${BOOST_ROOT}/lib")
+
+# 只在你给的路径里找
+set(Boost_NO_SYSTEM_PATHS ON)
+
+# 如果你的库只有 Release 版本，避免 Debug 配置去找 *-gd.lib
+set(Boost_USE_DEBUG_LIBS   OFF)
+set(Boost_USE_RELEASE_LIBS ON)
+
+# 如果库名里是 -s-（静态运行时），打开这一行，并确保你的工程用 /MT
+# set(Boost_USE_STATIC_RUNTIME ON)
+
+# 如果库是静态链接（.lib 静态库而非 dll 的 import lib），打开这一行
+# set(Boost_USE_STATIC_LIBS ON)
+
+find_package(Boost 1.80 REQUIRED COMPONENTS serialization filesystem system)
+
+# （可选）如果你决定用 /MT，打开下面这段
+# if(MSVC)
+#   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# endif()
+
 
 #=== 12. 头文件路径 ===
 include_directories(
@@ -126,6 +149,8 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/include/CameraModels
   ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
   ${Pangolin_INCLUDE_DIRS}
+  # ${BOOST_INCLUDE_DIR}
+
 )
 
 #=== 13. 主库源文件收集 ===
@@ -196,6 +221,7 @@ set(ORBSLAM3_HEADERS
 add_library(${PROJECT_NAME} SHARED ${ORBSLAM3_SOURCES} ${ORBSLAM3_HEADERS})
 
 #=== 15. 宏与链接（目标级） ===
+# === 15. 链接（去掉 ${BOOST_INCLUDE_DIR}，换成 Boost:: 导入目标） ===
 target_compile_definitions(${PROJECT_NAME}
   PRIVATE ORB_SLAM3_EXPORTS COMPILEDWITHC11 WIN32_LEAN_AND_MEAN NOMINMAX)
 
@@ -205,11 +231,14 @@ target_link_libraries(${PROJECT_NAME}
     OpenGL::GL
     ${GLEW_LIB_TARGET}
     Pangolin::pangolin
-    Boost::serialization
     Threads::Threads
     ${DBoW2_LIB}
     ${G2O_LIB}
+    Boost::serialization
+    Boost::filesystem
+    Boost::system
 )
+
 
 #=== 16. Examples 构建函数 ===
 function(build_example example_list base_dir suffix)

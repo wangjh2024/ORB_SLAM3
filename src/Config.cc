@@ -1,8 +1,8 @@
 /**
 * This file is part of ORB-SLAM3
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. G√≥mez Rodr√≠guez, Jos√© M.M. Montiel and Juan D. Tard√≥s, University of Zaragoza.
-* Copyright (C) 2014-2016 Ra√∫l Mur-Artal, Jos√© M.M. Montiel and Juan D. Tard√≥s, University of Zaragoza.
+* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. G®Æmez Rodr®™guez, Jos®¶ M.M. Montiel and Juan D. Tard®Æs, University of Zaragoza.
+* Copyright (C) 2014-2016 Ra®≤l Mur-Artal, Jos®¶ M.M. Montiel and Juan D. Tard®Æs, University of Zaragoza.
 *
 * ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 * License as published by the Free Software Foundation, either version 3 of the License, or
@@ -19,33 +19,12 @@
 
 #include "Config.h"
 
-#ifdef _WIN32
-#include <cstdint>
-#include <io.h>
-#include <direct.h>
-#include <windows.h>
-#define sleep(seconds) Sleep((seconds) * 1000)
-#else
-#include <unistd.h>
-#include <stdint-gcc.h>
-#endif
-
-#include <chrono>
-#include <thread>
-
-// Ë∑®Âπ≥Âè∞usleepÊõø‰ª£
-inline void portable_usleep(int microseconds) {
-	std::this_thread::sleep_for(std::chrono::microseconds(microseconds));
-}
-
-
-
 namespace ORB_SLAM3
 {
 
-	bool ConfigParser::ParseConfigFile(std::string& strConfigFile)
-	{
-		return true;
-	}
+bool ConfigParser::ParseConfigFile(std::string &strConfigFile)
+{
+    return true;
+}
 
 }

@@ -20,6 +20,9 @@
 #define CAMERAMODELS_KANNALABRANDT8_H
 
 #include "win_compat_undef_access.h"
+#ifdef access
+#  undef access
+#endif
 #include <boost/serialization/access.hpp>  // 建议显式包含
 
 #include <assert.h>

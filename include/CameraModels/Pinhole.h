@@ -22,6 +22,10 @@
 #include <assert.h>
 
 #include "GeometricCamera.h"
+
+#ifdef access
+#  undef access
+#endif
 #include <boost/serialization/access.hpp>
 
 #include "TwoViewReconstruction.h"

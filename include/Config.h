@@ -1,8 +1,8 @@
 /**
 * This file is part of ORB-SLAM3
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. G√≥mez Rodr√≠guez, Jos√© M.M. Montiel and Juan D. Tard√≥s, University of Zaragoza.
-* Copyright (C) 2014-2016 Ra√∫l Mur-Artal, Jos√© M.M. Montiel and Juan D. Tard√≥s, University of Zaragoza.
+* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. G®Æmez Rodr®™guez, Jos®¶ M.M. Montiel and Juan D. Tard®Æs, University of Zaragoza.
+* Copyright (C) 2014-2016 Ra®≤l Mur-Artal, Jos®¶ M.M. Montiel and Juan D. Tard®Æs, University of Zaragoza.
 *
 * ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 * License as published by the Free Software Foundation, either version 3 of the License, or
@@ -19,55 +19,48 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-//#include <unistd.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
-#ifdef _WIN32
-#include <cstdint>
-#include <io.h>
-#include <direct.h>
-#else
-#include <unistd.h>
-#include <stdint-gcc.h>
-#endif
+
 namespace ORB_SLAM3
 {
 
-	class ViewerConfig
-	{
+class ViewerConfig
+{
 
-	};
+};
 
-	class CameraConfig
-	{
+class CameraConfig
+{
 
-	};
+};
 
-	class ORBExtractorConfig
-	{
+class ORBExtractorConfig
+{
 
-	};
+};
 
-	class IMUConfig
-	{
+class IMUConfig
+{
 
-	};
+};
 
-	class ConfigParser
-	{
-	public:
-		bool ParseConfigFile(std::string& strConfigFile);
+class ConfigParser
+{
+public:
+    bool ParseConfigFile(std::string &strConfigFile);
 
-	private:
+private:
 
-		ViewerConfig mViewerConfig;
-		CameraConfig mCameraConfig;
-		ORBExtractorConfig mORBConfig;
-		IMUConfig mIMUConfig;
+    ViewerConfig mViewerConfig;
+    CameraConfig mCameraConfig;
+    ORBExtractorConfig mORBConfig;
+    IMUConfig mIMUConfig;
 
-	};
+};
 
 }
 
