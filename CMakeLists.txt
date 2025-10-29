@@ -1,25 +1,17 @@
 cmake_minimum_required(VERSION 3.20...3.28)
 project(ORB_SLAM3)
 
-# 在项目开头添加 Sophus 配置
-option(USE_SYSTEM_SOPHUS "Use system-installed Sophus library" OFF)
+# ========== SOPHUS 冲突修复 ==========
+# 强制使用项目自带的 Sophus，禁用系统 Sophus
+set(Sophus_DIR "")
+set(SOPHUS_FOUND FALSE)
+set(Sophus_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus)
 
-if(NOT USE_SYSTEM_SOPHUS)
-    # 禁用系统 Sophus 查找
-    set(Sophus_DIR "")
-    set(SOPHUS_FOUND FALSE)
-    
-    # 使用项目自带的 Sophus
-    if(EXISTS ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus)
-        set(Sophus_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus)
-        message(STATUS "Using project Sophus from: ${Sophus_INCLUDE_DIRS}")
-    else()
-        message(FATAL_ERROR "Project Sophus not found at: ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus")
-    endif()
-else()
-    # 使用系统 Sophus
-    find_package(Sophus REQUIRED)
-endif()
+# 确保不查找系统 Sophus
+set(CMAKE_DISABLE_FIND_PACKAGE_Sophus TRUE)
+
+message(STATUS "Forcing use of project Sophus: ${Sophus_INCLUDE_DIRS}")
+
 
 # 设置所有已知的策略以消除警告
 cmake_policy(SET CMP0157 OLD)  # 旧版本兼容性
@@ -44,16 +36,39 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 在文件开头添加 Boost 查找
-find_package(Boost REQUIRED COMPONENTS serialization)
+
+
+
+# 强制禁用 Boost 序列化
+add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
+message(STATUS "Boost serialization explicitly disabled.")
+
+# 仍然查找 Boost，但只用于其他组件（例如 system, filesystem），不依赖 serialization
+find_package(Boost COMPONENTS system filesystem)
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     message(STATUS "Boost found: ${Boost_VERSION}")
 else()
-    # 如果 Boost 没找到，禁用序列化
-    add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
-    message(STATUS "Boost not found, disabling serialization")
+    message(WARNING "Boost not found, some features may be disabled.")
 endif()
+
+# # 强制禁用 Boost 序列化
+# add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
+# message(STATUS "Boost serialization explicitly disabled.")
+
+# # 仍然查找 Boost，但只用于其他组件
+# find_package(Boost COMPONENTS system filesystem)
+# if(Boost_FOUND)
+#     include_directories(${Boost_INCLUDE_DIRS})
+#     message(STATUS "Boost found: ${Boost_VERSION}")
+# else()
+#     message(WARNING "Boost not found, some features may be disabled.")
+# endif()
+
+
+
+
+
 
 # 平台特定设置
 if(WIN32)
@@ -82,13 +97,13 @@ if(WIN32)
         /D_HAS_STD_BYTE=0  # 明确禁用 std::byte
     )
 
-    # Boost 序列化修复
-    add_definitions(
-        -DBOOST_SERIALIZATION_ACCESS=friend
-        -DBOOST_ALL_NO_LIB
-        -DBOOST_SERIALIZATION_DYN_LINK
-        -DBOOST_ALLOW_DEPRECATED_HEADERS
-    )
+    # # Boost 序列化修复
+    # add_definitions(
+    #     -DBOOST_SERIALIZATION_ACCESS=friend
+    #     -DBOOST_ALL_NO_LIB
+    #     -DBOOST_SERIALIZATION_DYN_LINK
+    #     -DBOOST_ALLOW_DEPRECATED_HEADERS
+    # )
     
     # 设置运行时库
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -260,6 +275,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/CameraModels>
     $<INSTALL_INTERFACE:include>
 )
+include_directories(${PROJECT_SOURCE_DIR}/Thirdparty/Sophus)
 
 target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE
     ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
