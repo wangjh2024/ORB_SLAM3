@@ -1,12 +1,46 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.20)
 project(DBoW2)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -march=native")
+# 在文件开头添加 Boost 查找
+find_package(Boost REQUIRED COMPONENTS serialization)
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
+    message(STATUS "Boost found: ${Boost_VERSION}")
+else()
+    # 如果 Boost 没找到，禁用序列化
+    add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
+    message(STATUS "Boost not found, disabling serialization")
+endif()
+
+# 修复编译器标志 - 完全重写
+if(MSVC)
+    # MSVC 编译器选项
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
+    
+    # 禁用特定警告
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267 /wd4244 /wd4996")
+    
+    # Release 模式优化
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
+    endif()
+else()
+    # GCC/Clang 编译器选项
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3")
+    
+    # 检查并添加架构优化
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-march=native" HAS_MARCH_NATIVE)
+    if(HAS_MARCH_NATIVE)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+    endif()
+endif()
 
 set(HDRS_DBOW2
   DBoW2/BowVector.h
@@ -28,13 +62,14 @@ set(SRCS_DUTILS
   DUtils/Random.cpp
   DUtils/Timestamp.cpp)
 
-set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
 
+# 在 DBoW2/CMakeLists.txt 中修复 OpenCV 查找
 find_package(OpenCV 4 QUIET)
 if(NOT OpenCV_FOUND)
-   find_package(OpenCV 3.0 QUIET)
+   message(STATUS "OpenCV 4.x not found, trying OpenCV 3.x...")
+   find_package(OpenCV 3 QUIET)
    if(NOT OpenCV_FOUND)
-      message(FATAL_ERROR "OpenCV > 3.0 not found.")
+      message(FATAL_ERROR "OpenCV not found.")
    endif()
 endif()
 

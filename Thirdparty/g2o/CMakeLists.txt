@@ -1,10 +1,20 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
+# 修复第1行 - 使用兼容性语法
+cmake_minimum_required(VERSION 3.5...3.28)
+
 SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
 
 PROJECT(g2o)
 
+# 添加 C++11 支持
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 SET(g2o_C_FLAGS)
 SET(g2o_CXX_FLAGS)
+
+# ===== 手动指定 Eigen3 头文件路径 =====
+set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-install/include/eigen3")
+include_directories(${EIGEN3_INCLUDE_DIR})
 
 # default built type
 if(NOT CMAKE_BUILD_TYPE)
@@ -14,6 +24,8 @@ endif()
 MESSAGE(STATUS "BUILD TYPE:" ${CMAKE_BUILD_TYPE})
 
 SET (G2O_LIB_TYPE SHARED)
+
+# ... [其余内容保持不变] ...
 
 # There seems to be an issue with MSVC8
 # see http://eigen.tuxfamily.org/bz/show_bug.cgi?id=83
@@ -59,11 +71,29 @@ SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
 # SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 # SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
 
-# activate warnings !!!
-SET(g2o_C_FLAGS "${g2o_C_FLAGS} -Wall -W")
-SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} -Wall -W")
+# 激活警告，但区分编译器# 编译器特定优化选项
+if(MSVC)
+    # MSVC 编译器优化选项
+    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /arch:AVX2")
+    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2 /arch:AVX2")
+else()
+    # GCC/Clang 编译器优化选项
+    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
+    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
+endif()
 
-# specifying compiler flags
+# 激活警告，区分编译器
+if(MSVC)
+    # MSVC 警告选项
+    SET(g2o_C_FLAGS "${g2o_C_FLAGS} /W3")
+    SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} /W3")
+else()
+    # GCC/Clang 警告选项
+    SET(g2o_C_FLAGS "${g2o_C_FLAGS} -Wall")
+    SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} -Wall")
+endif()
+
+# 指定编译器标志
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${g2o_CXX_FLAGS}")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${g2o_C_FLAGS}")
 

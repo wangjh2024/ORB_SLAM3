@@ -14,10 +14,10 @@
 #include <map>
 #include <vector>
 
+
+
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/map.hpp>
-#include "win_compat_undef_access.h"
-#include <boost/serialization/access.hpp>  // 建议显式包含
 
 namespace DBoW2 {
 

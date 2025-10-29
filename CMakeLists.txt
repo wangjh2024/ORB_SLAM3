@@ -120,6 +120,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
     ${Pangolin_INCLUDE_DIRS}  # 确保添加 Pangolin 包含目录
 )
+
 # 查找 Boost
 set(BOOST_ROOT "E:/3rd_party/boost17")
 find_package(Boost REQUIRED COMPONENTS serialization system filesystem)
