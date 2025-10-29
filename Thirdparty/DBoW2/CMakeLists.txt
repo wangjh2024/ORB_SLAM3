@@ -5,6 +5,17 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# 在文件开头添加 Boost 查找
+find_package(Boost REQUIRED COMPONENTS serialization)
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
+    message(STATUS "Boost found: ${Boost_VERSION}")
+else()
+    # 如果 Boost 没找到，禁用序列化
+    add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
+    message(STATUS "Boost not found, disabling serialization")
+endif()
+
 # 修复编译器标志 - 完全重写
 if(MSVC)
     # MSVC 编译器选项

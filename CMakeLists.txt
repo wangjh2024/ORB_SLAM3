@@ -226,8 +226,12 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     ${OpenCV_LIBS}
     ${Pangolin_LIBRARIES}
     ${Boost_LIBRARIES}
-    DBoW2
-    g2o
+    # ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/
+    ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release/g2o.lib
+    ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/Release/DBoW2.lib
+
+    # DBoW2
+    # g2o
     Threads::Threads
 )
 
