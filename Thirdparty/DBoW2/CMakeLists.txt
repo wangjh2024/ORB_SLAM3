@@ -5,8 +5,31 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -march=native")
+# 修复编译器标志 - 完全重写
+if(MSVC)
+    # MSVC 编译器选项
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
+    
+    # 禁用特定警告
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267 /wd4244 /wd4996")
+    
+    # Release 模式优化
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
+    endif()
+else()
+    # GCC/Clang 编译器选项
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3")
+    
+    # 检查并添加架构优化
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-march=native" HAS_MARCH_NATIVE)
+    if(HAS_MARCH_NATIVE)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+    endif()
+endif()
 
 set(HDRS_DBOW2
   DBoW2/BowVector.h
