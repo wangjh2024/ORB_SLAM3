@@ -1,61 +1,101 @@
 cmake_minimum_required(VERSION 3.20)
-project(ORB_SLAM3)
+project(ORB_SLAM3 LANGUAGES CXX)
 
-# 针对MSVC的特定设置
-if(MSVC)
-    # 提高编译器标准
-    set(CMAKE_CXX_STANDARD 14)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    
-    # 禁用特定警告
-    add_compile_options(/wd4996 /wd4820 /wd4464 /wd4244)
-    
-    # Eigen相关设置
-    add_definitions(-DEIGEN_MAKE_ALIGNED_OPERATOR_NEW)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-endif()
+#=== 0. 依赖路径（根据本机环境修改） ===
+set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
+set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
+set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
+set(Pangolin_INCLUDE_DIRS "E:/3rd_party/pangolin-install/include")
+set(BOOST_ROOT "E:/3rd_party/boost17")
+set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
+set(DBoW2_LIB  "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
+set(G2O_LIB    "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/g2o.lib")
 
-#=== 1. 构建配置 ===
+#=== 1. 基本构建配置 ===
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
-message("Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
+# 输出目录
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+
+#=== 2. MSVC 专项优化与“强制预包含” ===
+if(MSVC)
+  add_compile_options(
+    /permissive- /MP /utf-8 /bigobj
+    /wd4244 /wd4267 /wd4305 /wd4996 /wd4820 /wd4464
+  )
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /Oi /Ot /arch:AVX2")
+
+  # —— 目录级强制预包含（关键修复点）——
+  set(WIN_FORCE_INCLUDE "${PROJECT_SOURCE_DIR}/include/win_gl_preinclude.h")
+  set(WIN_UNDEF_ACCESS  "${PROJECT_SOURCE_DIR}/include/win_compat_undef_access.h")
+  add_compile_options(/FI"${WIN_FORCE_INCLUDE}" /FI"${WIN_UNDEF_ACCESS}")
+endif()
+
+#=== 3. 全局宏定义（修复 Windows + OpenGL 头文件冲突） ===
+add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX -D_USE_MATH_DEFINES)
+add_definitions(-DEIGEN_MAKE_ALIGNED_OPERATOR_NEW -D_CRT_SECURE_NO_WARNINGS)
+
+#=== 4. CMake 策略 ===
 cmake_policy(SET CMP0167 NEW)
 cmake_policy(SET CMP0144 NEW)
 
-#=== 2. 编译定义与选项 ===
-add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/bigobj>")
-add_definitions(-D_HAS_STD_BYTE=0 -DNOMINMAX -DCOMPILEDWITHC11 -DORB_SLAM3_EXPORTS)
-#=== Windows 平台宏定义，防止 APIENTRY 与 min/max 冲突 ===
-add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX)
-
+#=== 5. 模块路径 ===
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
-#=== 3. OpenCV ===
-set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
+#=== 6. 依赖：OpenCV ===
 find_package(OpenCV REQUIRED)
-message("OpenCV version: ${OpenCV_VERSION}")
+message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 
-#=== 4. Eigen3 & Threads ===
-set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
+#=== 7. 依赖：Eigen（仅头文件） ===
 include_directories(${EIGEN3_INCLUDE_DIR})
-find_package(Eigen3 REQUIRED)
 
+#=== 8. 依赖：线程库 ===
 find_package(Threads REQUIRED)
 
-#=== 5. Pangolin ===
-set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
-set(Pangolin_INCLUDE_DIRS "E:/3rd_party/pangolin-install/include")
+#=== 9. 依赖：OpenGL 与 GLEW ===
+find_package(OpenGL REQUIRED)
 
-set(Pangolin_LIBRARIES
+find_package(GLEW QUIET)
+if(GLEW_FOUND)
+  message(STATUS "GLEW found via CMake")
+  if(TARGET GLEW::GLEW)
+    set(GLEW_LIB_TARGET GLEW::GLEW)
+  elseif(GLEW_LIBRARY AND GLEW_INCLUDE_DIRS)
+    include_directories(${GLEW_INCLUDE_DIRS})
+    set(GLEW_LIB_TARGET ${GLEW_LIBRARY})
+  endif()
+else()
+  message(WARNING "GLEW config not found; fallback to manual include/link")
+  include_directories(${GLEW_ROOT}/include)
+  if(EXISTS "${GLEW_ROOT}/lib/Release/x64/glew32.lib")
+    link_directories(${GLEW_ROOT}/lib/Release/x64)
+    set(GLEW_LIB_TARGET glew32)
+  elseif(EXISTS "${GLEW_ROOT}/lib/glew32.lib")
+    link_directories(${GLEW_ROOT}/lib)
+    set(GLEW_LIB_TARGET glew32)
+  else()
+    message(FATAL_ERROR "Cannot locate GLEW library under ${GLEW_ROOT}")
+  endif()
+endif()
+
+#=== 10. 依赖：Pangolin（若找不到，手动建接口目标） ===
+find_package(Pangolin QUIET)
+if(TARGET Pangolin::pangolin)
+  message(STATUS "Pangolin target found")
+else()
+  message(STATUS "Manually creating Pangolin imported interface target...")
+  add_library(Pangolin::pangolin INTERFACE IMPORTED GLOBAL)
+  set_property(TARGET Pangolin::pangolin PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES "${Pangolin_INCLUDE_DIRS}")
+  set(PANGOLIN_LIBS
     E:/3rd_party/pangolin-install/lib/pango_core.lib
     E:/3rd_party/pangolin-install/lib/pango_display.lib
     E:/3rd_party/pangolin-install/lib/pango_opengl.lib
@@ -65,19 +105,12 @@ set(Pangolin_LIBRARIES
     E:/3rd_party/pangolin-install/lib/pango_vars.lib
     E:/3rd_party/pangolin-install/lib/pango_windowing.lib
     E:/3rd_party/pangolin-install/lib/pango_scene.lib
-)
-
-if(NOT TARGET Pangolin::pangolin)
-    message(STATUS "Manually creating Pangolin imported target...")
-    add_library(Pangolin::pangolin INTERFACE IMPORTED)
-    set_target_properties(Pangolin::pangolin PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${Pangolin_INCLUDE_DIRS}"
-        INTERFACE_LINK_LIBRARIES "${Pangolin_LIBRARIES}"
-    )
+  )
+  set_property(TARGET Pangolin::pangolin PROPERTY
+    INTERFACE_LINK_LIBRARIES "${PANGOLIN_LIBS};OpenGL::GL;${GLEW_LIB_TARGET}")
 endif()
 
-#=== 6. Boost ===
-set(BOOST_ROOT "E:/3rd_party/boost17")
+#=== 11. 依赖：Boost（serialization） ===
 find_package(Boost REQUIRED COMPONENTS serialization)
 if(Boost_FOUND)
   message(STATUS "Boost Found: ${Boost_VERSION}")
@@ -86,28 +119,17 @@ else()
   message(FATAL_ERROR "Boost not found.")
 endif()
 
-#=== 7. GLEW ===
-set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
-find_package(GLEW REQUIRED)
-if(GLEW_FOUND)
-  include_directories(${GLEW_INCLUDE_DIRS})
-endif()
-
-#=== 8. 头文件路径 ===
+#=== 12. 头文件路径 ===
 include_directories(
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/include/CameraModels
   ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
-  ${EIGEN3_INCLUDE_DIR}
   ${Pangolin_INCLUDE_DIRS}
 )
 
-#=== 9. 库输出路径 ===
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
-
-#=== 10. 构建主库 ===
-add_library(${PROJECT_NAME} SHARED
+#=== 13. 主库源文件收集 ===
+set(ORBSLAM3_SOURCES
   src/System.cc
   src/Tracking.cc
   src/LocalMapping.cc
@@ -136,6 +158,8 @@ add_library(${PROJECT_NAME} SHARED
   src/TwoViewReconstruction.cc
   src/Config.cc
   src/Settings.cc
+)
+set(ORBSLAM3_HEADERS
   include/System.h
   include/Tracking.h
   include/LocalMapping.h
@@ -168,18 +192,45 @@ add_library(${PROJECT_NAME} SHARED
   include/Settings.h
 )
 
-#=== 11. 链接依赖 ===
+#=== 14. 生成 ORB_SLAM3 动态库 ===
+add_library(${PROJECT_NAME} SHARED ${ORBSLAM3_SOURCES} ${ORBSLAM3_HEADERS})
+
+#=== 15. 宏与链接（目标级） ===
+target_compile_definitions(${PROJECT_NAME}
+  PRIVATE ORB_SLAM3_EXPORTS COMPILEDWITHC11 WIN32_LEAN_AND_MEAN NOMINMAX)
+
 target_link_libraries(${PROJECT_NAME}
+  PRIVATE
     ${OpenCV_LIBS}
-    Eigen3::Eigen
+    OpenGL::GL
+    ${GLEW_LIB_TARGET}
     Pangolin::pangolin
-    ${Boost_LIBRARIES}
+    Boost::serialization
     Threads::Threads
-    ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib
-    ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/g2o.lib
+    ${DBoW2_LIB}
+    ${G2O_LIB}
 )
 
-#=== 12. 构建示例 ===
+#=== 16. Examples 构建函数 ===
+function(build_example example_list base_dir suffix)
+  foreach(example ${example_list})
+    get_filename_component(dir  ${example} DIRECTORY)
+    get_filename_component(name ${example} NAME_WE)
+    set(target_name "${name}_${suffix}")
+
+    add_executable(${target_name} ${base_dir}/${example}.cc)
+    target_link_libraries(${target_name} PRIVATE ${PROJECT_NAME})
+    target_compile_definitions(${target_name} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+
+    set_target_properties(${target_name} PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY          "${PROJECT_SOURCE_DIR}/${base_dir}/${dir}"
+      RUNTIME_OUTPUT_DIRECTORY_DEBUG    "${PROJECT_SOURCE_DIR}/${base_dir}/${dir}"
+      RUNTIME_OUTPUT_DIRECTORY_RELEASE  "${PROJECT_SOURCE_DIR}/${base_dir}/${dir}"
+    )
+  endforeach()
+endfunction()
+
+#=== 17. 示例清单 ===
 set(EXAMPLES
   RGB-D/rgbd_tum
   Stereo/stereo_kitti
@@ -194,41 +245,15 @@ set(EXAMPLES
   Stereo-Inertial/stereo_inertial_euroc
   Stereo-Inertial/stereo_inertial_tum_vi
 )
+set(EXAMPLES_OLD ${EXAMPLES})
 
-foreach(example ${EXAMPLES})
-  get_filename_component(dir ${example} DIRECTORY)
-  get_filename_component(name ${example} NAME_WE)  # 提取文件名部分
-  set(target_name "${name}_exe")                   # 构建合法目标名
+#=== 18. 构建所有示例 ===
+build_example("${EXAMPLES}" "Examples" "exe")
+build_example("${EXAMPLES_OLD}" "Examples_old" "old")
 
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/${dir})
-  add_executable(${target_name} Examples/${example}.cc)
-  target_link_libraries(${target_name} ${PROJECT_NAME})
-endforeach()
-
-
-#=== 13. 旧版本示例 ===
-set(EXAMPLES_OLD
-  RGB-D/rgbd_tum
-  Stereo/stereo_kitti
-  Stereo/stereo_euroc
-  Stereo/stereo_tum_vi
-  Monocular/mono_tum
-  Monocular/mono_kitti
-  Monocular/mono_euroc
-  Monocular/mono_tum_vi
-  Monocular-Inertial/mono_inertial_euroc
-  Monocular-Inertial/mono_inertial_tum_vi
-  Stereo-Inertial/stereo_inertial_euroc
-  Stereo-Inertial/stereo_inertial_tum_vi
-)
-
-foreach(example ${EXAMPLES_OLD})
-  get_filename_component(dir ${example} DIRECTORY)
-  get_filename_component(name ${example} NAME_WE)
-  set(target_name "${name}_old")
-
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples_old/${dir})
-  add_executable(${target_name} Examples_old/${example}.cc)
-  target_link_libraries(${target_name} ${PROJECT_NAME})
-endforeach()
-
+#=== 19. 打印关键信息 ===
+message(STATUS "OpenCV libs: ${OpenCV_LIBS}")
+message(STATUS "Eigen include: ${EIGEN3_INCLUDE_DIR}")
+message(STATUS "Pangolin include: ${Pangolin_INCLUDE_DIRS}")
+message(STATUS "Boost include: ${Boost_INCLUDE_DIRS}")
+message(STATUS "Using GLEW: ${GLEW_LIB_TARGET}")
