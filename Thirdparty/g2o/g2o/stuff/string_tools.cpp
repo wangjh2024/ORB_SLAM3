@@ -36,7 +36,44 @@
 #include <cstdio>
 #include <iostream>
 #include <iterator>
+#include <string>
+#include <sstream>
+#include <vector>
 
+// 使用标准库替代 vasprintf
+std::string formatString(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    
+    // 确定需要的缓冲区大小
+    int size = vsnprintf(nullptr, 0, fmt, args);
+    va_end(args);
+    
+    if (size < 0) {
+        return std::string();
+    }
+    
+    // 分配缓冲区
+    std::vector<char> buffer(size + 1);
+    
+    va_start(args, fmt);
+    vsnprintf(buffer.data(), buffer.size(), fmt, args);
+    va_end(args);
+    
+    return std::string(buffer.data());
+}
+
+// 简化 readLine 函数
+int readLine(std::istream& is, std::stringstream& currentLine) {
+    std::string line;
+    if (!std::getline(is, line)) {
+        return -1;
+    }
+    
+    currentLine.str(line);
+    currentLine.clear();
+    return static_cast<int>(line.length());
+}
 #if (defined (UNIX) || defined(CYGWIN)) && !defined(ANDROID)
 #include <wordexp.h>
 #endif
