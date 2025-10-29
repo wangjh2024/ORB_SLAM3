@@ -1,208 +1,175 @@
-# 修复第1行 - 使用兼容性语法
-cmake_minimum_required(VERSION 3.5...3.28)
+# ===============================================================
+#  g2o CMake 构建脚本（优化版，适配 Windows + VS2022 + Eigen3）
+# ===============================================================
 
-SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
+#=== 1. CMake 基本配置 ===
+cmake_minimum_required(VERSION 3.10...3.28)
+project(g2o LANGUAGES C CXX)
 
-PROJECT(g2o)
-
-# 添加 C++11 支持
+# 启用 C++14 支持（ORB_SLAM3 与 g2o 推荐使用 C++14）
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-SET(g2o_C_FLAGS)
-SET(g2o_CXX_FLAGS)
+#=== 2. 启用动态库构建（Windows 下自动生成 .dll/.lib） ===
+option(BUILD_SHARED_LIBS "Build shared libraries (DLL)" ON)
 
-# ===== 手动指定 Eigen3 头文件路径 =====
+#=== 3. Windows 平台特定定义（导出符号） ===
+if(WIN32)
+    add_definitions(-DG2O_EXPORTS)
+endif()
+
+#=== 4. 手动指定 Eigen3 头文件路径 ===
 set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-install/include/eigen3")
 include_directories(${EIGEN3_INCLUDE_DIR})
 
-# default built type
+#=== 5. 构建类型：Release by default ===
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
+message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 
-MESSAGE(STATUS "BUILD TYPE:" ${CMAKE_BUILD_TYPE})
-
-SET (G2O_LIB_TYPE SHARED)
-
-# ... [其余内容保持不变] ...
-
-# There seems to be an issue with MSVC8
-# see http://eigen.tuxfamily.org/bz/show_bug.cgi?id=83
-if(MSVC90)
-  add_definitions(-DEIGEN_DONT_ALIGN_STATICALLY=1)
-  message(STATUS "Disabling memory alignment for MSVC8")
-endif(MSVC90)
-
-# Set the output directory for the build executables and libraries
-IF(WIN32)
-  SET(g2o_LIBRARY_OUTPUT_DIRECTORY ${g2o_SOURCE_DIR}/bin CACHE PATH "Target for the libraries")
-ELSE(WIN32)
-  SET(g2o_LIBRARY_OUTPUT_DIRECTORY ${g2o_SOURCE_DIR}/lib CACHE PATH "Target for the libraries")
-ENDIF(WIN32)
-SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY})
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY})
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${g2o_RUNTIME_OUTPUT_DIRECTORY})
-
-# Set search directory for looking for our custom CMake scripts to
-# look for SuiteSparse, QGLViewer, and Eigen3.
-LIST(APPEND CMAKE_MODULE_PATH ${g2o_SOURCE_DIR}/cmake_modules)
-
-# Detect OS and define macros appropriately
-IF(UNIX)
-  ADD_DEFINITIONS(-DUNIX)
-  MESSAGE(STATUS "Compiling on Unix")
-ENDIF(UNIX)
-
-# Eigen library parallelise itself, though, presumably due to performance issues
-# OPENMP is experimental. We experienced some slowdown with it
-FIND_PACKAGE(OpenMP)
-SET(G2O_USE_OPENMP OFF CACHE BOOL "Build g2o with OpenMP support (EXPERIMENTAL)")
-IF(OPENMP_FOUND AND G2O_USE_OPENMP)
-  SET (G2O_OPENMP 1)
-  SET(g2o_C_FLAGS "${g2o_C_FLAGS} ${OpenMP_C_FLAGS}")
-  SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} -DEIGEN_DONT_PARALLELIZE ${OpenMP_CXX_FLAGS}")
-  MESSAGE(STATUS "Compiling with OpenMP support")
-ENDIF(OPENMP_FOUND AND G2O_USE_OPENMP)
-
-# Compiler specific options for gcc
-SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
-SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
-# SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-# SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
-
-# 激活警告，但区分编译器# 编译器特定优化选项
-if(MSVC)
-    # MSVC 编译器优化选项
-    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /arch:AVX2")
-    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2 /arch:AVX2")
+#=== 6. 输出路径设置 ===
+if(WIN32)
+  set(g2o_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin CACHE PATH "Target for the libraries")
 else()
-    # GCC/Clang 编译器优化选项
-    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
-    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
+  set(g2o_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib CACHE PATH "Target for the libraries")
+endif()
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY})
+
+#=== 7. 设置编译器优化选项 ===
+if(MSVC)
+    # Windows 下 MSVC 优化参数
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /arch:AVX2 /W3")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2 /arch:AVX2 /W3")
+else()
+    # Linux/macOS 下 GCC/Clang 优化参数
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -Wall")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native -Wall")
 endif()
 
-# 激活警告，区分编译器
-if(MSVC)
-    # MSVC 警告选项
-    SET(g2o_C_FLAGS "${g2o_C_FLAGS} /W3")
-    SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} /W3")
-else()
-    # GCC/Clang 警告选项
-    SET(g2o_C_FLAGS "${g2o_C_FLAGS} -Wall")
-    SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} -Wall")
+#=== 8. 寻找 OpenMP（可选） ===
+find_package(OpenMP)
+set(G2O_USE_OPENMP OFF CACHE BOOL "Build g2o with OpenMP support (EXPERIMENTAL)")
+if(OPENMP_FOUND AND G2O_USE_OPENMP)
+    set(G2O_OPENMP 1)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    add_definitions(-DEIGEN_DONT_PARALLELIZE)
+    message(STATUS "Compiling with OpenMP support")
 endif()
 
-# 指定编译器标志
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${g2o_CXX_FLAGS}")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${g2o_C_FLAGS}")
+#=== 9. 查找 Eigen3（必须） ===
+find_package(Eigen3 3.1.0 REQUIRED)
+if(EIGEN3_FOUND)
+    message(STATUS "Found Eigen3: ${EIGEN3_INCLUDE_DIR}")
+    include_directories(${EIGEN3_INCLUDE_DIR})
+else()
+    message(FATAL_ERROR "Eigen3 not found! Please check EIGEN3_INCLUDE_DIR.")
+endif()
 
-# Find Eigen3
-SET(EIGEN3_INCLUDE_DIR ${G2O_EIGEN3_INCLUDE})
-FIND_PACKAGE(Eigen3 3.1.0 REQUIRED)
-IF(EIGEN3_FOUND)
-  SET(G2O_EIGEN3_INCLUDE ${EIGEN3_INCLUDE_DIR} CACHE PATH "Directory of Eigen3")
-ELSE(EIGEN3_FOUND)
-  SET(G2O_EIGEN3_INCLUDE "" CACHE PATH "Directory of Eigen3")
-ENDIF(EIGEN3_FOUND)
+#=== 10. 生成 config.h（供源码中引用） ===
+set(G2O_CXX_COMPILER "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER}")
+configure_file(config.h.in ${CMAKE_SOURCE_DIR}/config.h)
 
-# Generate config.h
-SET(G2O_CXX_COMPILER "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER}")
-configure_file(config.h.in ${g2o_SOURCE_DIR}/config.h)
-
-# Set up the top-level include directories
-INCLUDE_DIRECTORIES(
-${g2o_SOURCE_DIR}/core
-${g2o_SOURCE_DIR}/types
-${g2o_SOURCE_DIR}/stuff 
-${G2O_EIGEN3_INCLUDE})
-
-# Include the subdirectories
-ADD_LIBRARY(g2o ${G2O_LIB_TYPE}
-#types
-g2o/types/types_sba.h
-g2o/types/types_six_dof_expmap.h
-g2o/types/types_sba.cpp
-g2o/types/types_six_dof_expmap.cpp
-g2o/types/types_seven_dof_expmap.cpp
-g2o/types/types_seven_dof_expmap.h
-g2o/types/se3quat.h
-g2o/types/se3_ops.h
-g2o/types/se3_ops.hpp
-#core
-g2o/core/base_edge.h
-g2o/core/base_binary_edge.h
-g2o/core/hyper_graph_action.cpp
-g2o/core/base_binary_edge.hpp
-g2o/core/hyper_graph_action.h
-g2o/core/base_multi_edge.h           
-g2o/core/hyper_graph.cpp
-g2o/core/base_multi_edge.hpp         
-g2o/core/hyper_graph.h
-g2o/core/base_unary_edge.h          
-g2o/core/linear_solver.h
-g2o/core/base_unary_edge.hpp         
-g2o/core/marginal_covariance_cholesky.cpp
-g2o/core/base_vertex.h               
-g2o/core/marginal_covariance_cholesky.h
-g2o/core/base_vertex.hpp             
-g2o/core/matrix_structure.cpp
-g2o/core/batch_stats.cpp             
-g2o/core/matrix_structure.h
-g2o/core/batch_stats.h               
-g2o/core/openmp_mutex.h
-g2o/core/block_solver.h              
-g2o/core/block_solver.hpp            
-g2o/core/parameter.cpp               
-g2o/core/parameter.h                 
-g2o/core/cache.cpp                   
-g2o/core/cache.h
-g2o/core/optimizable_graph.cpp       
-g2o/core/optimizable_graph.h         
-g2o/core/solver.cpp                  
-g2o/core/solver.h
-g2o/core/creators.h                 
-g2o/core/optimization_algorithm_factory.cpp
-g2o/core/estimate_propagator.cpp     
-g2o/core/optimization_algorithm_factory.h
-g2o/core/estimate_propagator.h       
-g2o/core/factory.cpp                 
-g2o/core/optimization_algorithm_property.h
-g2o/core/factory.h                   
-g2o/core/sparse_block_matrix.h
-g2o/core/sparse_optimizer.cpp  
-g2o/core/sparse_block_matrix.hpp
-g2o/core/sparse_optimizer.h
-g2o/core/hyper_dijkstra.cpp 
-g2o/core/hyper_dijkstra.h
-g2o/core/parameter_container.cpp     
-g2o/core/parameter_container.h
-g2o/core/optimization_algorithm.cpp 
-g2o/core/optimization_algorithm.h
-g2o/core/optimization_algorithm_with_hessian.cpp 
-g2o/core/optimization_algorithm_with_hessian.h
-g2o/core/optimization_algorithm_levenberg.cpp 
-g2o/core/optimization_algorithm_levenberg.h
-g2o/core/optimization_algorithm_gauss_newton.cpp 
-g2o/core/optimization_algorithm_gauss_newton.h
-g2o/core/jacobian_workspace.cpp 
-g2o/core/jacobian_workspace.h
-g2o/core/robust_kernel.cpp 
-g2o/core/robust_kernel.h
-g2o/core/robust_kernel_factory.cpp
-g2o/core/robust_kernel_factory.h
-g2o/core/robust_kernel_impl.cpp 
-g2o/core/robust_kernel_impl.h
-#stuff
-g2o/stuff/string_tools.h
-g2o/stuff/color_macros.h 
-g2o/stuff/macros.h
-g2o/stuff/timeutil.cpp
-g2o/stuff/misc.h
-g2o/stuff/timeutil.h
-g2o/stuff/os_specific.c    
-g2o/stuff/os_specific.h
-g2o/stuff/string_tools.cpp
-g2o/stuff/property.cpp       
-g2o/stuff/property.h       
+#=== 11. 顶层包含目录 ===
+include_directories(
+    ${CMAKE_SOURCE_DIR}/core
+    ${CMAKE_SOURCE_DIR}/types
+    ${CMAKE_SOURCE_DIR}/stuff
 )
+
+#=== 12. 添加源文件并生成 g2o 动态库 ===
+# 注意：Windows 下此处将生成 g2o.dll + g2o.lib
+add_library(g2o
+    # ====== core 模块 ======
+    g2o/core/base_edge.h
+    g2o/core/base_binary_edge.h
+    g2o/core/hyper_graph_action.cpp
+    g2o/core/base_binary_edge.hpp
+    g2o/core/hyper_graph_action.h
+    g2o/core/base_multi_edge.h
+    g2o/core/hyper_graph.cpp
+    g2o/core/base_multi_edge.hpp
+    g2o/core/hyper_graph.h
+    g2o/core/base_unary_edge.h
+    g2o/core/linear_solver.h
+    g2o/core/base_unary_edge.hpp
+    g2o/core/marginal_covariance_cholesky.cpp
+    g2o/core/base_vertex.h
+    g2o/core/marginal_covariance_cholesky.h
+    g2o/core/base_vertex.hpp
+    g2o/core/matrix_structure.cpp
+    g2o/core/batch_stats.cpp
+    g2o/core/matrix_structure.h
+    g2o/core/batch_stats.h
+    g2o/core/openmp_mutex.h
+    g2o/core/block_solver.h
+    g2o/core/block_solver.hpp
+    g2o/core/parameter.cpp
+    g2o/core/parameter.h
+    g2o/core/cache.cpp
+    g2o/core/cache.h
+    g2o/core/optimizable_graph.cpp
+    g2o/core/optimizable_graph.h
+    g2o/core/solver.cpp
+    g2o/core/solver.h
+    g2o/core/factory.cpp
+    g2o/core/factory.h
+    g2o/core/robust_kernel.cpp
+    g2o/core/robust_kernel.h
+    g2o/core/robust_kernel_factory.cpp
+    g2o/core/robust_kernel_factory.h
+    g2o/core/robust_kernel_impl.cpp
+    g2o/core/robust_kernel_impl.h
+    g2o/core/optimization_algorithm.cpp
+    g2o/core/optimization_algorithm.h
+    g2o/core/optimization_algorithm_levenberg.cpp
+    g2o/core/optimization_algorithm_levenberg.h
+    g2o/core/optimization_algorithm_gauss_newton.cpp
+    g2o/core/optimization_algorithm_gauss_newton.h
+    g2o/core/jacobian_workspace.cpp
+    g2o/core/jacobian_workspace.h
+    g2o/core/estimate_propagator.cpp
+    g2o/core/estimate_propagator.h
+    g2o/core/parameter_container.cpp
+    g2o/core/parameter_container.h
+    g2o/core/matrix_structure.cpp
+    g2o/core/matrix_structure.h
+
+    # ====== types 模块 ======
+    g2o/types/types_sba.h
+    g2o/types/types_sba.cpp
+    g2o/types/types_six_dof_expmap.cpp
+    g2o/types/types_six_dof_expmap.h
+    g2o/types/types_seven_dof_expmap.cpp
+    g2o/types/types_seven_dof_expmap.h
+    g2o/types/se3quat.h
+    g2o/types/se3_ops.h
+    g2o/types/se3_ops.hpp
+
+    # ====== stuff 模块 ======
+    g2o/stuff/string_tools.cpp
+    g2o/stuff/string_tools.h
+    g2o/stuff/timeutil.cpp
+    g2o/stuff/timeutil.h
+    g2o/stuff/property.cpp
+    g2o/stuff/property.h
+    g2o/stuff/os_specific.c
+    g2o/stuff/os_specific.h
+    g2o/stuff/macros.h
+    g2o/stuff/color_macros.h
+    g2o/stuff/misc.h
+)
+
+#=== 13. 目标属性设置（输出路径） ===
+set_target_properties(g2o PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY}
+    LIBRARY_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY}
+    RUNTIME_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY}
+)
+
+#=== 14. 打印最终状态 ===
+message(STATUS "✅ g2o will be built as a shared library (DLL)")
+message(STATUS "✅ Output directory: ${g2o_LIBRARY_OUTPUT_DIRECTORY}")
+message(STATUS "✅ Using Eigen3 include: ${EIGEN3_INCLUDE_DIR}")
