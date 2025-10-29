@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.20)
 project(DBoW2)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -29,11 +29,13 @@ set(SRCS_DUTILS
   DUtils/Timestamp.cpp)
 
 
+# 在 DBoW2/CMakeLists.txt 中修复 OpenCV 查找
 find_package(OpenCV 4 QUIET)
 if(NOT OpenCV_FOUND)
-   find_package(OpenCV 3.0 QUIET)
+   message(STATUS "OpenCV 4.x not found, trying OpenCV 3.x...")
+   find_package(OpenCV 3 QUIET)
    if(NOT OpenCV_FOUND)
-      message(FATAL_ERROR "OpenCV > 3.0 not found.")
+      message(FATAL_ERROR "OpenCV not found.")
    endif()
 endif()
 

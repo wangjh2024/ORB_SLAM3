@@ -1,139 +1,156 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.20)
 project(ORB_SLAM3)
 
-IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE Release)
-ENDIF()
-
-MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall   -O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
-
-# Check C++11 or C++0x support
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
-if(COMPILER_SUPPORTS_CXX11)
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-   add_definitions(-DCOMPILEDWITHC11)
-   message(STATUS "Using flag -std=c++11.")
-elseif(COMPILER_SUPPORTS_CXX0X)
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-   add_definitions(-DCOMPILEDWITHC0X)
-   message(STATUS "Using flag -std=c++0x.")
-else()
-   message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+# 设置默认构建类型
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
-LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
+# 设置 C++ 标准
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(OpenCV 4.4)
+# 平台特定设置
+if(WIN32)
+    add_definitions(-D_USE_MATH_DEFINES -D_CRT_SECURE_NO_WARNINGS)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    
+    # Boost 序列化修复
+    add_definitions(-DBOOST_SERIALIZATION_ACCESS=friend)
+    add_definitions(-DBOOST_ALL_NO_LIB)
+    add_definitions(-DBOOST_SERIALIZATION_DYN_LINK)
+    
+    # 禁用警告
+    add_compile_options(/wd4267 /wd4244 /wd4305 /wd4819 /wd4996 /wd4018)
+endif()
+
+# 设置输出目录
+set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
+set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
+
+# 查找依赖包 - 修复版本要求
+message(STATUS "Searching for dependencies...")
+
+# 修复 OpenCV 查找
+find_package(OpenCV 4 QUIET)
+if(NOT OpenCV_FOUND)
+   message(STATUS "OpenCV 4.x not found, trying OpenCV 3.x...")
+   find_package(OpenCV 3 QUIET)
    if(NOT OpenCV_FOUND)
-      message(FATAL_ERROR "OpenCV > 4.4 not found.")
+      message(FATAL_ERROR "OpenCV not found. Please install OpenCV 3.x or 4.x")
    endif()
+endif()
 
-MESSAGE("OPENCV VERSION:")
-MESSAGE(${OpenCV_VERSION})
+message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 
+# 其他依赖查找（保持宽松要求）
 find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
-find_package(realsense2)
+find_package(Boost REQUIRED COMPONENTS serialization system filesystem)
+find_package(Threads REQUIRED)
+find_package(realsense2 QUIET)  # 保持 QUIET，可选依赖
 
-include_directories(
-${PROJECT_SOURCE_DIR}
-${PROJECT_SOURCE_DIR}/include
-${PROJECT_SOURCE_DIR}/include/CameraModels
-${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
-${EIGEN3_INCLUDE_DIR}
-${Pangolin_INCLUDE_DIRS}
-)
+# 验证依赖
+message(STATUS "=== Dependency Status ===")
+message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+message(STATUS "Eigen3 version: ${EIGEN3_VERSION_STRING}")
+message(STATUS "Pangolin found: ${Pangolin_FOUND}")
+message(STATUS "Boost found: ${Boost_FOUND}")
+message(STATUS "RealSense2 found: ${realsense2_FOUND}")
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
-
-add_library(${PROJECT_NAME} SHARED
-src/System.cc
-src/Tracking.cc
-src/LocalMapping.cc
-src/LoopClosing.cc
-src/ORBextractor.cc
-src/ORBmatcher.cc
-src/FrameDrawer.cc
-src/Converter.cc
-src/MapPoint.cc
-src/KeyFrame.cc
-src/Atlas.cc
-src/Map.cc
-src/MapDrawer.cc
-src/Optimizer.cc
-src/Frame.cc
-src/KeyFrameDatabase.cc
-src/Sim3Solver.cc
-src/Viewer.cc
-src/ImuTypes.cc
-src/G2oTypes.cc
-src/CameraModels/Pinhole.cpp
-src/CameraModels/KannalaBrandt8.cpp
-src/OptimizableTypes.cpp
-src/MLPnPsolver.cpp
-src/GeometricTools.cc
-src/TwoViewReconstruction.cc
-src/Config.cc
-src/Settings.cc
-include/System.h
-include/Tracking.h
-include/LocalMapping.h
-include/LoopClosing.h
-include/ORBextractor.h
-include/ORBmatcher.h
-include/FrameDrawer.h
-include/Converter.h
-include/MapPoint.h
-include/KeyFrame.h
-include/Atlas.h
-include/Map.h
-include/MapDrawer.h
-include/Optimizer.h
-include/Frame.h
-include/KeyFrameDatabase.h
-include/Sim3Solver.h
-include/Viewer.h
-include/ImuTypes.h
-include/G2oTypes.h
-include/CameraModels/GeometricCamera.h
-include/CameraModels/Pinhole.h
-include/CameraModels/KannalaBrandt8.h
-include/OptimizableTypes.h
-include/MLPnPsolver.h
-include/GeometricTools.h
-include/TwoViewReconstruction.h
-include/SerializationUtils.h
-include/Config.h
-include/Settings.h)
-
-add_subdirectory(Thirdparty/g2o)
-
-target_link_libraries(${PROJECT_NAME}
-${OpenCV_LIBS}
-${EIGEN3_LIBS}
-${Pangolin_LIBRARIES}
-${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
-${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
--lboost_serialization
--lcrypto
-)
-
-# If RealSense SDK is found the library is added and its examples compiled
-if(realsense2_FOUND)
-    include_directories(${PROJECT_NAME}
-    ${realsense_INCLUDE_DIR}
-    )
-    target_link_libraries(${PROJECT_NAME}
-    ${realsense2_LIBRARY}
-    )
+if(NOT OpenCV_FOUND)
+    message(FATAL_ERROR "OpenCV not found! Please install OpenCV.")
 endif()
+
+if(NOT Pangolin_FOUND)
+    message(FATAL_ERROR "Pangolin not found! Please install Pangolin.")
+endif()
+
+# 包含目录
+include_directories(
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/include/CameraModels
+    ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
+    ${EIGEN3_INCLUDE_DIR}
+    ${Pangolin_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
+)
+
+# 添加第三方库子目录
+add_subdirectory(Thirdparty/g2o)
+add_subdirectory(Thirdparty/DBoW2)
+
+# 定义 ORB_SLAM3 源文件
+set(ORB_SLAM3_SOURCES
+    src/System.cc
+    src/Tracking.cc
+    src/LocalMapping.cc
+    src/LoopClosing.cc
+    src/ORBextractor.cc
+    src/ORBmatcher.cc
+    src/FrameDrawer.cc
+    src/Converter.cc
+    src/MapPoint.cc
+    src/KeyFrame.cc
+    src/Atlas.cc
+    src/Map.cc
+    src/MapDrawer.cc
+    src/Optimizer.cc
+    src/Frame.cc
+    src/KeyFrameDatabase.cc
+    src/Sim3Solver.cc
+    src/Viewer.cc
+    src/ImuTypes.cc
+    src/G2oTypes.cc
+    src/CameraModels/Pinhole.cpp
+    src/CameraModels/KannalaBrandt8.cpp
+    src/OptimizableTypes.cpp
+    src/MLPnPsolver.cpp
+    src/GeometricTools.cc
+    src/TwoViewReconstruction.cc
+    src/Config.cc
+    src/Settings.cc
+)
+
+# 创建主库 - 只包含源文件
+add_library(${PROJECT_NAME} SHARED ${ORB_SLAM3_SOURCES})
+
+# 设置库属性
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# 链接库
+target_link_libraries(${PROJECT_NAME}
+    ${OpenCV_LIBS}
+    ${Pangolin_LIBRARIES}
+    ${Boost_LIBRARIES}
+    DBoW2
+    g2o
+    Threads::Threads
+)
+
+# 如果找到 RealSense，添加支持
+if(realsense2_FOUND)
+    message(STATUS "Adding RealSense2 support")
+    target_include_directories(${PROJECT_NAME} PRIVATE ${realsense2_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} ${realsense2_LIBRARY})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_REALSENSE=1)
+else()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_REALSENSE=0)
+    message(STATUS "RealSense2 not found - skipping RealSense examples")
+endif()
+
+# 示例程序构建（可选）
+# ... [示例程序代码保持不变] ...
+
+message(STATUS "ORB_SLAM3 configuration completed successfully!")
 
 
 # Build examples

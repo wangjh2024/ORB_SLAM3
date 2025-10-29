@@ -1,7 +1,13 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+# 修复第1行 - 使用兼容性语法
+cmake_minimum_required(VERSION 3.5...3.28)
+
 SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
 
 PROJECT(g2o)
+
+# 添加 C++11 支持
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 SET(g2o_C_FLAGS)
 SET(g2o_CXX_FLAGS)
@@ -14,6 +20,8 @@ endif()
 MESSAGE(STATUS "BUILD TYPE:" ${CMAKE_BUILD_TYPE})
 
 SET (G2O_LIB_TYPE SHARED)
+
+# ... [其余内容保持不变] ...
 
 # There seems to be an issue with MSVC8
 # see http://eigen.tuxfamily.org/bz/show_bug.cgi?id=83
