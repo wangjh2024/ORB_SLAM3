@@ -1,6 +1,26 @@
 cmake_minimum_required(VERSION 3.20...3.28)
 project(ORB_SLAM3)
 
+# 在项目开头添加 Sophus 配置
+option(USE_SYSTEM_SOPHUS "Use system-installed Sophus library" OFF)
+
+if(NOT USE_SYSTEM_SOPHUS)
+    # 禁用系统 Sophus 查找
+    set(Sophus_DIR "")
+    set(SOPHUS_FOUND FALSE)
+    
+    # 使用项目自带的 Sophus
+    if(EXISTS ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus)
+        set(Sophus_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus)
+        message(STATUS "Using project Sophus from: ${Sophus_INCLUDE_DIRS}")
+    else()
+        message(FATAL_ERROR "Project Sophus not found at: ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus")
+    endif()
+else()
+    # 使用系统 Sophus
+    find_package(Sophus REQUIRED)
+endif()
+
 # 设置所有已知的策略以消除警告
 cmake_policy(SET CMP0157 OLD)  # 旧版本兼容性
 cmake_policy(SET CMP0167 NEW)  # FindBoost 模块
@@ -24,11 +44,44 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# 在文件开头添加 Boost 查找
+find_package(Boost REQUIRED COMPONENTS serialization)
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
+    message(STATUS "Boost found: ${Boost_VERSION}")
+else()
+    # 如果 Boost 没找到，禁用序列化
+    add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
+    message(STATUS "Boost not found, disabling serialization")
+endif()
+
 # 平台特定设置
 if(WIN32)
     add_definitions(-D_USE_MATH_DEFINES -D_CRT_SECURE_NO_WARNINGS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
     
+    
+    # Windows 特定修复 - 添加这些定义
+    add_definitions(
+        -D_CRT_SECURE_NO_WARNINGS
+        -DNOMINMAX
+        -DWIN32_LEAN_AND_MEAN
+        -D_HAS_STD_BYTE=0  # 禁用 std::byte，解决冲突
+    )
+    
+    # 修复 byte 冲突问题
+    add_compile_options(
+        /W3
+        /wd4267 /wd4244 /wd4305 /wd4819 /wd4996 /wd4018
+        /wd4251 /wd4275
+        # /wd2872  # 禁用 byte 冲突警告
+        /D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING
+        /D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
+        /D_CRT_SECURE_NO_WARNINGS
+        /Zc:__cplusplus
+        /D_HAS_STD_BYTE=0  # 明确禁用 std::byte
+    )
+
     # Boost 序列化修复
     add_definitions(
         -DBOOST_SERIALIZATION_ACCESS=friend
@@ -37,18 +90,13 @@ if(WIN32)
         -DBOOST_ALLOW_DEPRECATED_HEADERS
     )
     
-    # 禁用警告
-    add_compile_options(
-        /W3
-        /wd4267 /wd4244 /wd4305 /wd4819 /wd4996 /wd4018
-        /D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING
-    )
-    
     # 设置运行时库
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+        add_compile_options(/O2 /Ob2 /DNDEBUG)
     else()
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
+        add_compile_options(/Od /DEBUG)
     endif()
 else()
     add_compile_options(-Wall -Wextra -Wpedantic)
@@ -226,12 +274,11 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     ${OpenCV_LIBS}
     ${Pangolin_LIBRARIES}
     ${Boost_LIBRARIES}
-    # ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/
-    ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release/g2o.lib
-    ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/Release/DBoW2.lib
+    # ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release/g2o.lib
+    # ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/Release/DBoW2.lib
 
-    # DBoW2
-    # g2o
+    DBoW2
+    g2o
     Threads::Threads
 )
 
