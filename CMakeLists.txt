@@ -35,6 +35,7 @@ find_package(G2O REQUIRED)
 
 # 包含目录
 include_directories(
+    ${Sophus_INCLUDE_DIRS}  # vcpkg 的 Sophus 在前
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/include/CameraModels
@@ -42,7 +43,6 @@ include_directories(
     ${Pangolin_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
-    ${Sophus_INCLUDE_DIRS}
     ${G2O_INCLUDE_DIRS}
 )
 
