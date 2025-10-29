@@ -19,7 +19,13 @@
 
 #ifndef IMUTYPES_H
 #define IMUTYPES_H
+// 在文件开头添加：
+#include <iostream>
 
+// 或者修改第203行附近的代码：
+#ifdef _WIN32
+    #include <iostream>
+#endif
 #include <vector>
 #include <utility>
 #include <opencv2/core/core.hpp>
