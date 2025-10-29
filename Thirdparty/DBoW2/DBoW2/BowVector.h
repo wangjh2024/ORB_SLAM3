@@ -1,3 +1,4 @@
+#include "fix_boost_serialization.h"
 /**
  * File: BowVector.h
  * Date: March 2011

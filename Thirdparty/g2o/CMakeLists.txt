@@ -3,6 +3,10 @@ SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
 
 PROJECT(g2o)
 
+# 添加 C++11 支持
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 SET(g2o_C_FLAGS)
 SET(g2o_CXX_FLAGS)
 
@@ -22,7 +26,7 @@ if(MSVC90)
   message(STATUS "Disabling memory alignment for MSVC8")
 endif(MSVC90)
 
-# Set the output directory for the build executables and libraries
+# Set the output directory for the build jexecutables and libraries
 IF(WIN32)
   SET(g2o_LIBRARY_OUTPUT_DIRECTORY ${g2o_SOURCE_DIR}/bin CACHE PATH "Target for the libraries")
 ELSE(WIN32)
@@ -53,15 +57,27 @@ IF(OPENMP_FOUND AND G2O_USE_OPENMP)
   MESSAGE(STATUS "Compiling with OpenMP support")
 ENDIF(OPENMP_FOUND AND G2O_USE_OPENMP)
 
-# Compiler specific options for gcc
-SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
-SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
-# SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-# SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
-
-# activate warnings !!!
-SET(g2o_C_FLAGS "${g2o_C_FLAGS} -Wall -W")
-SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} -Wall -W")
+# Compiler specific options
+IF(MSVC)
+  # MSVC compiler flags
+  SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
+  SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2")
+  
+  # MSVC compatible warning flags
+  SET(g2o_C_FLAGS "${g2o_C_FLAGS} /W3")
+  SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} /W3")
+  
+  # Disable specific MSVC warnings that are too verbose
+  SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} /wd4996 /wd4267 /wd4244")
+ELSE()
+  # GCC/Clang compiler flags
+  SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
+  SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
+  
+  # GCC/Clang warning flags
+  SET(g2o_C_FLAGS "${g2o_C_FLAGS} -Wall")
+  SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} -Wall")
+ENDIF()
 
 # specifying compiler flags
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${g2o_CXX_FLAGS}")
@@ -72,8 +88,10 @@ SET(EIGEN3_INCLUDE_DIR ${G2O_EIGEN3_INCLUDE})
 FIND_PACKAGE(Eigen3 3.1.0 REQUIRED)
 IF(EIGEN3_FOUND)
   SET(G2O_EIGEN3_INCLUDE ${EIGEN3_INCLUDE_DIR} CACHE PATH "Directory of Eigen3")
+  MESSAGE(STATUS "Eigen3 found: ${EIGEN3_INCLUDE_DIR}")
 ELSE(EIGEN3_FOUND)
   SET(G2O_EIGEN3_INCLUDE "" CACHE PATH "Directory of Eigen3")
+  MESSAGE(FATAL_ERROR "Eigen3 not found! Please install Eigen3.")
 ENDIF(EIGEN3_FOUND)
 
 # Generate config.h
@@ -82,97 +100,123 @@ configure_file(config.h.in ${g2o_SOURCE_DIR}/config.h)
 
 # Set up the top-level include directories
 INCLUDE_DIRECTORIES(
-${g2o_SOURCE_DIR}/core
-${g2o_SOURCE_DIR}/types
-${g2o_SOURCE_DIR}/stuff 
-${G2O_EIGEN3_INCLUDE})
-
-# Include the subdirectories
-ADD_LIBRARY(g2o ${G2O_LIB_TYPE}
-#types
-g2o/types/types_sba.h
-g2o/types/types_six_dof_expmap.h
-g2o/types/types_sba.cpp
-g2o/types/types_six_dof_expmap.cpp
-g2o/types/types_seven_dof_expmap.cpp
-g2o/types/types_seven_dof_expmap.h
-g2o/types/se3quat.h
-g2o/types/se3_ops.h
-g2o/types/se3_ops.hpp
-#core
-g2o/core/base_edge.h
-g2o/core/base_binary_edge.h
-g2o/core/hyper_graph_action.cpp
-g2o/core/base_binary_edge.hpp
-g2o/core/hyper_graph_action.h
-g2o/core/base_multi_edge.h           
-g2o/core/hyper_graph.cpp
-g2o/core/base_multi_edge.hpp         
-g2o/core/hyper_graph.h
-g2o/core/base_unary_edge.h          
-g2o/core/linear_solver.h
-g2o/core/base_unary_edge.hpp         
-g2o/core/marginal_covariance_cholesky.cpp
-g2o/core/base_vertex.h               
-g2o/core/marginal_covariance_cholesky.h
-g2o/core/base_vertex.hpp             
-g2o/core/matrix_structure.cpp
-g2o/core/batch_stats.cpp             
-g2o/core/matrix_structure.h
-g2o/core/batch_stats.h               
-g2o/core/openmp_mutex.h
-g2o/core/block_solver.h              
-g2o/core/block_solver.hpp            
-g2o/core/parameter.cpp               
-g2o/core/parameter.h                 
-g2o/core/cache.cpp                   
-g2o/core/cache.h
-g2o/core/optimizable_graph.cpp       
-g2o/core/optimizable_graph.h         
-g2o/core/solver.cpp                  
-g2o/core/solver.h
-g2o/core/creators.h                 
-g2o/core/optimization_algorithm_factory.cpp
-g2o/core/estimate_propagator.cpp     
-g2o/core/optimization_algorithm_factory.h
-g2o/core/estimate_propagator.h       
-g2o/core/factory.cpp                 
-g2o/core/optimization_algorithm_property.h
-g2o/core/factory.h                   
-g2o/core/sparse_block_matrix.h
-g2o/core/sparse_optimizer.cpp  
-g2o/core/sparse_block_matrix.hpp
-g2o/core/sparse_optimizer.h
-g2o/core/hyper_dijkstra.cpp 
-g2o/core/hyper_dijkstra.h
-g2o/core/parameter_container.cpp     
-g2o/core/parameter_container.h
-g2o/core/optimization_algorithm.cpp 
-g2o/core/optimization_algorithm.h
-g2o/core/optimization_algorithm_with_hessian.cpp 
-g2o/core/optimization_algorithm_with_hessian.h
-g2o/core/optimization_algorithm_levenberg.cpp 
-g2o/core/optimization_algorithm_levenberg.h
-g2o/core/optimization_algorithm_gauss_newton.cpp 
-g2o/core/optimization_algorithm_gauss_newton.h
-g2o/core/jacobian_workspace.cpp 
-g2o/core/jacobian_workspace.h
-g2o/core/robust_kernel.cpp 
-g2o/core/robust_kernel.h
-g2o/core/robust_kernel_factory.cpp
-g2o/core/robust_kernel_factory.h
-g2o/core/robust_kernel_impl.cpp 
-g2o/core/robust_kernel_impl.h
-#stuff
-g2o/stuff/string_tools.h
-g2o/stuff/color_macros.h 
-g2o/stuff/macros.h
-g2o/stuff/timeutil.cpp
-g2o/stuff/misc.h
-g2o/stuff/timeutil.h
-g2o/stuff/os_specific.c    
-g2o/stuff/os_specific.h
-g2o/stuff/string_tools.cpp
-g2o/stuff/property.cpp       
-g2o/stuff/property.h       
+  ${g2o_SOURCE_DIR}/core
+  ${g2o_SOURCE_DIR}/types
+  ${g2o_SOURCE_DIR}/stuff 
+  ${G2O_EIGEN3_INCLUDE}
 )
+
+# Modern CMake: Create the library with proper interface
+ADD_LIBRARY(g2o ${G2O_LIB_TYPE}
+  #types
+  g2o/types/types_sba.h
+  g2o/types/types_six_dof_expmap.h
+  g2o/types/types_sba.cpp
+  g2o/types/types_six_dof_expmap.cpp
+  g2o/types/types_seven_dof_expmap.cpp
+  g2o/types/types_seven_dof_expmap.h
+  g2o/types/se3quat.h
+  g2o/types/se3_ops.h
+  g2o/types/se3_ops.hpp
+  #core
+  g2o/core/base_edge.h
+  g2o/core/base_binary_edge.h
+  g2o/core/hyper_graph_action.cpp
+  g2o/core/base_binary_edge.hpp
+  g2o/core/hyper_graph_action.h
+  g2o/core/base_multi_edge.h           
+  g2o/core/hyper_graph.cpp
+  g2o/core/base_multi_edge.hpp         
+  g2o/core/hyper_graph.h
+  g2o/core/base_unary_edge.h          
+  g2o/core/linear_solver.h
+  g2o/core/base_unary_edge.hpp         
+  g2o/core/marginal_covariance_cholesky.cpp
+  g2o/core/base_vertex.h               
+  g2o/core/marginal_covariance_cholesky.h
+  g2o/core/base_vertex.hpp             
+  g2o/core/matrix_structure.cpp
+  g2o/core/batch_stats.cpp             
+  g2o/core/matrix_structure.h
+  g2o/core/batch_stats.h               
+  g2o/core/openmp_mutex.h
+  g2o/core/block_solver.h              
+  g2o/core/block_solver.hpp            
+  g2o/core/parameter.cpp               
+  g2o/core/parameter.h                 
+  g2o/core/cache.cpp                   
+  g2o/core/cache.h
+  g2o/core/optimizable_graph.cpp       
+  g2o/core/optimizable_graph.h         
+  g2o/core/solver.cpp                  
+  g2o/core/solver.h
+  g2o/core/creators.h                 
+  g2o/core/optimization_algorithm_factory.cpp
+  g2o/core/estimate_propagator.cpp     
+  g2o/core/optimization_algorithm_factory.h
+  g2o/core/estimate_propagator.h       
+  g2o/core/factory.cpp                 
+  g2o/core/optimization_algorithm_property.h
+  g2o/core/factory.h                   
+  g2o/core/sparse_block_matrix.h
+  g2o/core/sparse_optimizer.cpp  
+  g2o/core/sparse_block_matrix.hpp
+  g2o/core/sparse_optimizer.h
+  g2o/core/hyper_dijkstra.cpp 
+  g2o/core/hyper_dijkstra.h
+  g2o/core/parameter_container.cpp     
+  g2o/core/parameter_container.h
+  g2o/core/optimization_algorithm.cpp 
+  g2o/core/optimization_algorithm.h
+  g2o/core/optimization_algorithm_with_hessian.cpp 
+  g2o/core/optimization_algorithm_with_hessian.h
+  g2o/core/optimization_algorithm_levenberg.cpp 
+  g2o/core/optimization_algorithm_levenberg.h
+  g2o/core/optimization_algorithm_gauss_newton.cpp 
+  g2o/core/optimization_algorithm_gauss_newton.h
+  g2o/core/jacobian_workspace.cpp 
+  g2o/core/jacobian_workspace.h
+  g2o/core/robust_kernel.cpp 
+  g2o/core/robust_kernel.h
+  g2o/core/robust_kernel_factory.cpp
+  g2o/core/robust_kernel_factory.h
+  g2o/core/robust_kernel_impl.cpp 
+  g2o/core/robust_kernel_impl.h
+  #stuff
+  g2o/stuff/string_tools.h
+  g2o/stuff/color_macros.h 
+  g2o/stuff/macros.h
+  g2o/stuff/timeutil.cpp
+  g2o/stuff/misc.h
+  g2o/stuff/timeutil.h
+  g2o/stuff/os_specific.c    
+  g2o/stuff/os_specific.h
+  g2o/stuff/string_tools.cpp
+  g2o/stuff/property.cpp       
+  g2o/stuff/property.h       
+)
+
+# Modern CMake: Set target properties
+TARGET_INCLUDE_DIRECTORIES(g2o PUBLIC
+  ${g2o_SOURCE_DIR}/core
+  ${g2o_SOURCE_DIR}/types
+  ${g2o_SOURCE_DIR}/stuff 
+  ${G2O_EIGEN3_INCLUDE}
+)
+
+# Set output directory properties
+SET_TARGET_PROPERTIES(g2o PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY}
+  LIBRARY_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY}
+  RUNTIME_OUTPUT_DIRECTORY ${g2o_LIBRARY_OUTPUT_DIRECTORY}
+)
+
+# Add definitions for the target
+TARGET_COMPILE_DEFINITIONS(g2o PRIVATE
+  $<$<BOOL:${G2O_OPENMP}>:G2O_OPENMP>
+)
+
+MESSAGE(STATUS "g2o configuration completed successfully!")
+MESSAGE(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID}")
+MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+MESSAGE(STATUS "Eigen3 include: ${G2O_EIGEN3_INCLUDE}")

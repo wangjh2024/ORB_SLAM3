@@ -1,6 +1,62 @@
 cmake_minimum_required(VERSION 3.20)
 project(ORB_SLAM3)
 
+# 设置默认构建类型
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# 设置 C++ 标准
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# 平台特定设置
+if(WIN32)
+    add_definitions(-D_USE_MATH_DEFINES -D_CRT_SECURE_NO_WARNINGS)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    
+    # Boost 序列化修复
+    add_definitions(-DBOOST_SERIALIZATION_ACCESS=friend)
+    add_definitions(-DBOOST_ALL_NO_LIB)
+    add_definitions(-DBOOST_SERIALIZATION_DYN_LINK)
+    
+    # 禁用警告
+    add_compile_options(/wd4267 /wd4244 /wd4305 /wd4819 /wd4996 /wd4018)
+endif()
+# 在 project() 之后添加
+if(MSVC)
+    # Boost 序列化兼容性设置
+    add_definitions(
+        -DBOOST_ALLOW_DEPRECATED_HEADERS
+        -DBOOST_SERIALIZATION_ACCESS_GRANT_FRIEND
+    )
+    
+    # 或者直接定义宏
+    add_definitions(-DBOOST_SERIALIZATION_ACCESS\(\)=friend\ class\ boost::serialization::access\;)
+endif()
+
+add_definitions(-DBOOST_ALL_NO_LIB)
+add_definitions(-DBOOST_SERIALIZATION_DYN_LINK)
+
+
+# 创建 ORB_SLAM3 共享库
+# add_library(${PROJECT_NAME} SHARED ${ORB_SLAM3_SOURCES} ${ORB_SLAM3_HEADERS})
+
+
+# 在 project() 之后添加 Boost 序列化相关的定义
+if(MSVC)
+    # 解决 Boost 序列化访问权限问题
+    add_definitions(-DBOOST_SERIALIZATION_ACCESS_GRANT_FRIEND)
+    add_definitions(-DBOOST_ALLOW_DEPRECATED_HEADERS)
+    
+    # 禁用特定的 Boost 序列化警告
+    add_definitions(-DBOOST_SERIALIZATION_DISABLE_DEPRECATED_WARNINGS)
+endif()
+
+
+
+
 # 在 project() 之后立即添加
 if(MSVC)
     # 禁用所有导致编译失败的关键警告
@@ -95,6 +151,9 @@ find_package(Threads REQUIRED)
 
 # 可选依赖：RealSense
 find_package(realsense2 QUIET)
+
+find_library(G2O_LIBRARY NAMES g2o g2o_stuff g2o_core g2o_solver_cholmod g2o_solver_dense g2o_solver_pcg g2o_solver_slam2d_linear g2o_solver_structure_only g2o_types_sba g2o_types_sim3 g2o_types_slam2d g2o_types_slam3d)
+
 
 # 验证依赖
 message(STATUS "=== Dependency Status ===")
@@ -204,8 +263,18 @@ set(ORB_SLAM3_HEADERS
     include/Settings.h
 )
 
+# 在第176行附近，找到目标创建代码，修改为：
 # 创建 ORB_SLAM3 共享库
-add_library(${PROJECT_NAME} SHARED ${ORB_SLAM3_SOURCES} ${ORB_SLAM3_HEADERS})
+# add_library(${PROJECT_NAME} SHARED ${ORB_SLAM3_SOURCES} ${ORB_SLAM3_HEADERS})
+add_library(${PROJECT_NAME} SHARED ${ORB_SLAM3_SOURCES})
+
+# 在这里（目标创建之后）添加之前删除的代码
+if (MSVC)
+    # 为 MSVC 编译器添加 BOOST 序列化访问宏
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        BOOST_SERIALIZATION_ACCESS_PREF=_access_
+    )
+endif()
 
 # 设置库属性
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -214,16 +283,36 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_EXTENSIONS OFF
     POSITION_INDEPENDENT_CODE ON
 )
+# 包含目录
+target_include_directories(${PROJECT_NAME} PUBLIC
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/include/CameraModels
+    ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
+    ${EIGEN3_INCLUDE_DIR}
+    ${Pangolin_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
+)
 
-# 平台特定的库链接设置
+# 修改第200-208行的库路径设置
+# 使用更可靠的方式链接 DBoW2 和 g2o
 if(WIN32)
-    set(DBoW2_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
-    set(G2O_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/g2o.lib")
+    # 先检查库文件是否存在
+    if(EXISTS "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
+        set(DBoW2_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
+    else()
+        # 如果不存在，尝试使用 add_subdirectory 构建
+        add_subdirectory(Thirdparty/DBoW2)
+        set(DBoW2_LIB DBoW2)
+    endif()
+    
+    # g2o 已经在前面通过 add_subdirectory 构建了
+    set(G2O_LIB g2o)
 else()
     set(DBoW2_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so")
-    set(G2O_LIB "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so")
+    set(G2O_LIB g2o)
 endif()
-
 # 链接库
 target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBS}

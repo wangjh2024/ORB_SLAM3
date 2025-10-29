@@ -1,3 +1,4 @@
+#include "fix_boost_serialization.h"
 /**
 * This file is part of ORB-SLAM3
 *
@@ -19,7 +20,6 @@
 
 #ifndef MAP_H
 #define MAP_H
-#include <boost/serialization/access.hpp>
 
 #include "MapPoint.h"
 #include "KeyFrame.h"
@@ -29,6 +29,7 @@
 #include <mutex>
 
 #include <boost/serialization/base_object.hpp>
+#include <boost/serialization/access.hpp>
 
 
 namespace ORB_SLAM3

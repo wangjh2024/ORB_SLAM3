@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.10)
 project(DBoW2)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -29,13 +29,22 @@ set(SRCS_DUTILS
   DUtils/Timestamp.cpp)
 
 
+# Add this before find_package(OpenCV) to see what's happening
+message(STATUS "Looking for OpenCV...")
+
 find_package(OpenCV 4 QUIET)
 if(NOT OpenCV_FOUND)
+   message(STATUS "OpenCV 4 not found, trying OpenCV 3...")
    find_package(OpenCV 3.0 QUIET)
    if(NOT OpenCV_FOUND)
-      message(FATAL_ERROR "OpenCV > 3.0 not found.")
+      # Add more debug info
+      message(STATUS "OpenCV directories searched: ${OpenCV_DIR}")
+      message(FATAL_ERROR "OpenCV > 3.0 not found. Please set OpenCV_DIR or install OpenCV.")
    endif()
 endif()
+
+message(STATUS "OpenCV found: ${OpenCV_VERSION}")
+message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
 
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 

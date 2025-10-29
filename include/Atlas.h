@@ -1,3 +1,4 @@
+#include "fix_boost_serialization.h"
 /**
 * This file is part of ORB-SLAM3
 *

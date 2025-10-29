@@ -40,7 +40,27 @@
 #if (defined (UNIX) || defined(CYGWIN)) && !defined(ANDROID)
 #include <wordexp.h>
 #endif
+#ifdef _MSC_VER
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 
+int vasprintf(char **strp, const char *fmt, va_list ap) {
+    int len = _vscprintf(fmt, ap);
+    if (len == -1)
+        return -1;
+    char *str = (char*)malloc((size_t)len + 1);
+    if (!str)
+        return -1;
+    int retval = vsnprintf(str, len + 1, fmt, ap);
+    if (retval == -1) {
+        free(str);
+        return -1;
+    }
+    *strp = str;
+    return retval;
+}
+#endif
 namespace g2o {
 
 using namespace std;

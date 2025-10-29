@@ -1,3 +1,4 @@
+#include "fix_boost_serialization.h"
 /**
  * File: FeatureVector.h
  * Date: November 2011
