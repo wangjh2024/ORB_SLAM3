@@ -1,8 +1,8 @@
 /**
 * This file is part of ORB-SLAM3
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. G¨®mez Rodr¨ªguez, Jos¨¦ M.M. Montiel and Juan D. Tard¨®s, University of Zaragoza.
-* Copyright (C) 2014-2016 Ra¨²l Mur-Artal, Jos¨¦ M.M. Montiel and Juan D. Tard¨®s, University of Zaragoza.
+* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gï¿½ï¿½mez Rodrï¿½ï¿½guez, Josï¿½ï¿½ M.M. Montiel and Juan D. Tardï¿½ï¿½s, University of Zaragoza.
+* Copyright (C) 2014-2016 Raï¿½ï¿½l Mur-Artal, Josï¿½ï¿½ M.M. Montiel and Juan D. Tardï¿½ï¿½s, University of Zaragoza.
 *
 * ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 * License as published by the Free Software Foundation, either version 3 of the License, or
@@ -15,7 +15,11 @@
 * You should have received a copy of the GNU General Public License along with ORB-SLAM3.
 * If not, see <http://www.gnu.org/licenses/>.
 */
+// åœ¨ Config.cc å¼€å¤´æ·»åŠ 
+#include <string>
+#include "Config.h"
 
+// ç¡®ä¿ ConfigParser ç±»å·²æ­£ç¡®å®šä¹‰
 
 #include "Config.h"
 

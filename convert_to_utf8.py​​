@@ -1,0 +1,125 @@
+import os
+import codecs
+import chardet
+import shutil
+from pathlib import Path
+
+def convert_file_to_utf8_safe(file_path, backup=True):
+    """
+    安全地将文件转换为UTF-8编码（可备份原文件）
+    """
+    try:
+        # 创建备份
+        if backup:
+            backup_path = file_path + '.bak'
+            shutil.copy2(file_path, backup_path)
+        
+        # 检测文件编码
+        with open(file_path, 'rb') as f:
+            raw_data = f.read()
+            if not raw_data:  # 空文件
+                return True
+            
+            detected = chardet.detect(raw_data)
+            encoding = detected['encoding'] if detected['encoding'] else 'utf-8'
+            
+            # 尝试读取原文件
+            try:
+                content = raw_data.decode(encoding)
+            except UnicodeDecodeError:
+                # 尝试其他常见编码
+                for enc in ['gbk', 'gb2312', 'latin-1', 'cp1252']:
+                    try:
+                        content = raw_data.decode(enc)
+                        encoding = enc
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    print(f"✗ {file_path} 无法解码")
+                    return False
+            
+            # 如果是二进制文件（如图片），跳过
+            if '\x00' in content[:100]:  # 检查前100个字符是否有null字节
+                print(f"⚠ {file_path} 可能是二进制文件，跳过")
+                return False
+            
+            # 写入UTF-8编码
+            with open(file_path, 'w', encoding='utf-8', newline='') as f:
+                f.write(content)
+            
+            print(f"✓ {file_path} 从 {encoding} 转换为 UTF-8")
+            return True
+            
+    except Exception as e:
+        print(f"✗ {file_path} 转换失败: {str(e)}")
+        return False
+
+def batch_convert_directory(root_dir, extensions=None, exclude_dirs=None):
+    """
+    批量转换目录下的文件
+    """
+    if extensions is None:
+        extensions = ['.py', '.txt', '.md', '.html', '.css', '.js', '.json', '.xml']
+    
+    if exclude_dirs is None:
+        exclude_dirs = ['.git', '__pycache__', 'node_modules', '.vscode']
+    
+    root_path = Path(root_dir)
+    success_count = 0
+    total_count = 0
+    
+    # 收集所有目标文件
+    target_files = []
+    for ext in extensions:
+        target_files.extend(root_path.rglob(f'*{ext}'))
+    
+    for file_path in target_files:
+        # 检查是否在排除目录中
+        if any(exclude_dir in file_path.parts for exclude_dir in exclude_dirs):
+            continue
+            
+        total_count += 1
+        if convert_file_to_utf8_safe(file_path, backup=True):
+            success_count += 1
+    
+    print(f"\n转换统计:")
+    print(f"总文件数: {total_count}")
+    print(f"成功转换: {success_count}")
+    print(f"失败文件: {total_count - success_count}")
+    
+    # 提示备份文件清理
+    backup_files = list(root_path.rglob('*.bak'))
+    if backup_files:
+        print(f"\n备份文件数量: {len(backup_files)}")
+        print("如需清理备份文件，请运行: clean_backup_files()")
+
+def clean_backup_files(root_dir='.'):
+    """清理备份文件"""
+    root_path = Path(root_dir)
+    backup_files = list(root_path.rglob('*.bak'))
+    
+    for backup_file in backup_files:
+        try:
+            backup_file.unlink()
+            print(f"✓ 已删除备份文件: {backup_file}")
+        except Exception as e:
+            print(f"✗ 删除备份文件失败: {backup_file} - {e}")
+    
+    print(f"\n已清理 {len(backup_files)} 个备份文件")
+
+if __name__ == "__main__":
+    # 使用当前目录作为根目录
+    current_dir = "."
+    
+    print("=" * 50)
+    print("文件编码转换工具 - UTF-8转换")
+    print("=" * 50)
+    
+    # 要转换的文件类型
+    target_extensions = ['.py', '.txt', '.md', '.html', '.css', '.js', '.json', '.xml', '.csv', '.yaml', '.yml']
+    
+    # 执行转换
+    batch_convert_directory(current_dir, target_extensions)
+    
+    print("\n转换完成！")
