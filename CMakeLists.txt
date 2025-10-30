@@ -2,12 +2,12 @@ cmake_minimum_required(VERSION 3.20)
 project(ORB_SLAM3 LANGUAGES CXX)
 
 #=== 0. 依赖路径（根据本机环境修改） ===
-# set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
-# set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
-# set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
-# set(Pangolin_INCLUDE_DIRS "E:/3rd_party/pangolin-install/include")
+set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
+set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
+set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
+set(Pangolin_INCLUDE_DIRS "E:/3rd_party/pangolin-install/include")
 set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
-# set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
+set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
 set(DBoW2_LIB  "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
 set(G2O_LIB    "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/g2o.lib")
 
@@ -111,48 +111,50 @@ else()
 endif()
 
 # === 11. 依赖：Boost（手动配置，避免版本冲突） ===
+#=== 11. 依赖：Boost（修复版本）===
 set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
 
-# 手动配置 Boost
-set(BOOST_INCLUDE_DIR "${BOOST_ROOT}/include/boost-1_83")
-if(NOT EXISTS "${BOOST_INCLUDE_DIR}")
-  set(BOOST_INCLUDE_DIR "${BOOST_ROOT}/include")
-endif()
+# 优先使用 CMake 的 FindBoost
+find_package(Boost 1.83.0 QUIET COMPONENTS serialization filesystem system)
 
-if(NOT EXISTS "${BOOST_INCLUDE_DIR}/boost")
-  message(FATAL_ERROR "Boost headers not found in ${BOOST_INCLUDE_DIR}")
-endif()
-
-set(BOOST_LIB_DIR "${BOOST_ROOT}/lib")
-message(STATUS "Using Boost from: ${BOOST_INCLUDE_DIR}")
-
-# 为每个需要的组件创建目标
-set(BOOST_COMPONENTS serialization filesystem system)
-
-foreach(comp IN LISTS BOOST_COMPONENTS)
-  # 查找库文件
-  file(GLOB LIB_FILES "${BOOST_LIB_DIR}/*boost_${comp}*.lib")
-  if(LIB_FILES)
-    list(GET LIB_FILES 0 LIB_FILE)  # 取第一个匹配的文件
-    add_library(Boost::${comp} STATIC IMPORTED)
-    set_target_properties(Boost::${comp} PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
-      IMPORTED_LOCATION "${LIB_FILE}"
-    )
-    message(STATUS "Boost ${comp} library: ${LIB_FILE}")
-  else()
-    # 头文件库
-    add_library(Boost::${comp} INTERFACE IMPORTED)
-    set_target_properties(Boost::${comp} PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
-    )
-    message(STATUS "Boost ${comp}: header-only")
+if(Boost_FOUND)
+  message(STATUS "Boost found via CMake: ${Boost_VERSION}")
+  message(STATUS "Boost includes: ${Boost_INCLUDE_DIRS}")
+  message(STATUS "Boost libraries: ${Boost_LIBRARIES}")
+else()
+  # 回退到手动配置
+  message(STATUS "Boost not found via CMake, using manual configuration")
+  
+  set(BOOST_INCLUDE_DIR "${BOOST_ROOT}/include/boost-1_83")
+  if(NOT EXISTS "${BOOST_INCLUDE_DIR}")
+    set(BOOST_INCLUDE_DIR "${BOOST_ROOT}/include")
   endif()
-endforeach()
 
-# 设置通用变量
-set(Boost_FOUND TRUE)
-set(Boost_INCLUDE_DIRS "${BOOST_INCLUDE_DIR}")
+  if(NOT EXISTS "${BOOST_INCLUDE_DIR}/boost")
+    message(FATAL_ERROR "Boost headers not found in ${BOOST_INCLUDE_DIR}")
+  endif()
+
+  # 手动创建 Boost 目标
+  add_library(Boost::serialization INTERFACE IMPORTED)
+  set_target_properties(Boost::serialization PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
+  )
+  
+  add_library(Boost::filesystem INTERFACE IMPORTED)
+  set_target_properties(Boost::filesystem PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
+  )
+  
+  add_library(Boost::system INTERFACE IMPORTED)
+  set_target_properties(Boost::system PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
+  )
+  
+  # 添加库路径（如果有编译的库）
+  if(EXISTS "${BOOST_ROOT}/lib")
+    link_directories("${BOOST_ROOT}/lib")
+  endif()
+endif()
 
 
 #=== 12. 头文件路径 ===
