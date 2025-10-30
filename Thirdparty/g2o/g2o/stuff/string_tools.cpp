@@ -36,6 +36,44 @@
 #include <cstdio>
 #include <iostream>
 #include <iterator>
+// ==== MSVC compatibility shim for vasprintf ====
+#if defined(_MSC_VER) && !defined(HAVE_VASPRINTF)
+#define HAVE_VASPRINTF 1
+#define _CRT_SECURE_NO_WARNINGS
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+
+static int vasprintf(char** strp, const char* fmt, va_list ap) {
+  if (!strp) return -1;
+
+  // 1) 计算需要的长度（不含末尾 '\0'）
+  va_list ap_copy;
+  va_copy(ap_copy, ap);
+#if _MSC_VER >= 1400
+  int len = _vscprintf(fmt, ap_copy);
+#else
+  int len = std::vsnprintf(nullptr, 0, fmt, ap_copy);
+#endif
+  va_end(ap_copy);
+
+  if (len < 0) return -1;
+
+  // 2) 分配缓冲并格式化
+  char* buf = static_cast<char*>(std::malloc(static_cast<size_t>(len) + 1));
+  if (!buf) return -1;
+
+  int written = std::vsnprintf(buf, static_cast<size_t>(len) + 1, fmt, ap);
+  if (written < 0) {
+    std::free(buf);
+    return -1;
+  }
+
+  *strp = buf;
+  return written; // 返回写入的字符数（不含 '\0'）
+}
+#endif
+// ==== end shim ====
 
 #if (defined (UNIX) || defined(CYGWIN)) && !defined(ANDROID)
 #include <wordexp.h>
