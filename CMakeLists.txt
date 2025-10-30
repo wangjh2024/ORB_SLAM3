@@ -61,6 +61,15 @@ add_compile_definitions(
     EIGEN_NO_DEBUG                 # 关闭 Eigen 调试路径
     _CRT_DECLARE_NONSTDC_NAMES=0   # 禁止定义 POSIX 别名(如 access)
 )
+#=== 7.x: 全局中和 Windows 的 access 宏（让它等于自己，任何重定义都无效） ===
+add_compile_definitions(
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:_CRT_DECLARE_NONSTDC_NAMES=0>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<COMPILE_LANGUAGE:CXX>>:access=access>
+)
+#=== 7.y: 目录级全局 /FI，保证每个翻译单元最先包含 boost_compat.h ==========
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/FI"${BOOST_COMPAT_HEADER}">)
+endif()
 
 #=== 8. 依赖库查找与“必改#1：Eigen 导出给子项目” ==============================
 message(STATUS "开始查找依赖库...")
