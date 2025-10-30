@@ -5,13 +5,21 @@ PROJECT(g2o)
 
 SET(g2o_C_FLAGS)
 SET(g2o_CXX_FLAGS)
-
+# 在 CMakeLists.txt 中添加
+if(MSVC)
+    # 禁用 Windows.h 中的 min/max 宏
+    add_definitions(-DNOMINMAX)
+    
+    # 或者逐个禁用
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    add_definitions(-D_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS)
+endif()
 # default built type
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 MESSAGE(STATUS "BUILD TYPE:" ${CMAKE_BUILD_TYPE})

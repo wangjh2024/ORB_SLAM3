@@ -34,10 +34,13 @@
 #include <set>
 #include <limits>
 
-#ifdef _MSC_VER
-#include <unordered_map>
+#include <unordered_map>  // 添加这行
+
+// 兼容性宏
+#if defined(_MSC_VER) && _MSC_VER >= 1900  // VS2015 及以上
+#define G2O_TR1_NS std
 #else
-#include <tr1/unordered_map>
+#define G2O_TR1_NS std::tr1
 #endif
 
 namespace g2o {
@@ -135,7 +138,7 @@ namespace g2o {
           size_t operator ()(const OptimizableGraph::Vertex* v) const { return v->id();}
       };
 
-      typedef std::tr1::unordered_map<OptimizableGraph::Vertex*, AdjacencyMapEntry, VertexIDHashFunction> AdjacencyMap;
+      typedef std::unordered_map<OptimizableGraph::Vertex*, AdjacencyMapEntry, VertexIDHashFunction> AdjacencyMap;
 
     public:
       EstimatePropagator(OptimizableGraph* g);
