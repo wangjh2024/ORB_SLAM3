@@ -19,7 +19,7 @@
 
 #ifndef KEYFRAME_H
 #define KEYFRAME_H
-
+#include "boost_compat.h"
 #include "MapPoint.h"
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
@@ -39,7 +39,7 @@
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/access.hpp>
 #include "win_compat_undef_access.h"
-#include <boost/serialization/access.hpp>  // 建议显式包含
+#include <boost/serialization/access.hpp>  
 
 
 namespace ORB_SLAM3

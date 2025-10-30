@@ -27,10 +27,14 @@
 #ifndef G2O_TIMEUTIL_H
 #define G2O_TIMEUTIL_H
 
-#ifdef _WINDOWS
-#include <time.h>
+
+#ifdef _WIN32
+    #include <windows.h>
+    #include <time.h>
+    #include <chrono>
 #else
-#include <sys/time.h>
+    #include <sys/time.h>
+    #include <unistd.h>
 #endif
 
 #include <string>

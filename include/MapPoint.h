@@ -16,7 +16,6 @@
 * If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #ifndef MAPPOINT_H
 #define MAPPOINT_H
 
@@ -30,16 +29,18 @@
 #include <opencv2/core/core.hpp>
 #include <mutex>
 
+// 修改Boost包含顺序和方式
+#define BOOST_ALLOW_DEPRECATED_HEADERS  // 允许使用不推荐的头文件
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/map.hpp>
-#include <boost/serialization/access.hpp>
 
-#include "win_compat_undef_access.h"
-#include <boost/serialization/access.hpp>  // 建议显式包含
+// 显式包含access头文件
+#include <boost/serialization/access.hpp>
 
 namespace ORB_SLAM3
 {
+	// 保持其他代码不变...
 
 	class KeyFrame;
 	class Map;

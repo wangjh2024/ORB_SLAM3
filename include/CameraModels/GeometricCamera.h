@@ -18,7 +18,7 @@
 
 #ifndef CAMERAMODELS_GEOMETRICCAMERA_H
 #define CAMERAMODELS_GEOMETRICCAMERA_H
-
+#include "boost_compat.h"
 #include <vector>
 
 #include <opencv2/core/core.hpp>

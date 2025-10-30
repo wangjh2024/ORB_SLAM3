@@ -61,7 +61,7 @@ if(OPENMP_FOUND AND G2O_USE_OPENMP)
 endif()
 
 #=== 9. 查找 Eigen3（必须） ===
-find_package(Eigen3 3.1.0 REQUIRED)
+find_package(Eigen3 3.4.0 REQUIRED)
 if(EIGEN3_FOUND)
     message(STATUS "Found Eigen3: ${EIGEN3_INCLUDE_DIR}")
     include_directories(${EIGEN3_INCLUDE_DIR})

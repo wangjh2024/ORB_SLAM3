@@ -1,8 +1,8 @@
 /**
 * This file is part of ORB-SLAM3
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. G¨®mez Rodr¨ªguez, Jos¨¦ M.M. Montiel and Juan D. Tard¨®s, University of Zaragoza.
-* Copyright (C) 2014-2016 Ra¨²l Mur-Artal, Jos¨¦ M.M. Montiel and Juan D. Tard¨®s, University of Zaragoza.
+* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gï¿½ï¿½mez Rodrï¿½ï¿½guez, Josï¿½ï¿½ M.M. Montiel and Juan D. Tardï¿½ï¿½s, University of Zaragoza.
+* Copyright (C) 2014-2016 Raï¿½ï¿½l Mur-Artal, Josï¿½ï¿½ M.M. Montiel and Juan D. Tardï¿½ï¿½s, University of Zaragoza.
 *
 * ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 * License as published by the Free Software Foundation, either version 3 of the License, or
@@ -18,8 +18,17 @@
 
 #ifndef CONFIG_H
 #define CONFIG_H
+// åœ¨Config.hæ–‡ä»¶å¼€å¤´æ·»åŠ 
+#ifdef _WIN32
+    #include <io.h>
+    #include <process.h>
+    #define access _access
+    #define F_OK 0
+#else
+    #include <unistd.h>
+#endif
 
-#include <unistd.h>
+// #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>

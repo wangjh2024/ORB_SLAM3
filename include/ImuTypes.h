@@ -19,7 +19,7 @@
 
 #ifndef IMUTYPES_H
 #define IMUTYPES_H
-
+#include "boost_compat.h"
 #include <vector>
 #include <utility>
 #include <opencv2/core/core.hpp>

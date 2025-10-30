@@ -20,7 +20,7 @@
 #ifndef MAP_H
 #define MAP_H
 #include <boost/serialization/access.hpp>
-
+#include "boost_compat.h"
 #include "MapPoint.h"
 #include "KeyFrame.h"
 

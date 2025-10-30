@@ -19,7 +19,7 @@
 
 #ifndef MAPDRAWER_H
 #define MAPDRAWER_H
-
+#include "boost_compat.h"
 #include"Atlas.h"
 #include"MapPoint.h"
 #include"KeyFrame.h"
