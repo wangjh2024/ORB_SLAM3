@@ -47,7 +47,7 @@
 static int vasprintf(char** strp, const char* fmt, va_list ap) {
   if (!strp) return -1;
 
-  // 1) ¼ÆËãĞèÒªµÄ³¤¶È£¨²»º¬Ä©Î² '\0'£©
+  // 1) è®¡ç®—éœ€è¦çš„é•¿åº¦ï¼ˆä¸å«æœ«å°¾ '\0'ï¼‰
   va_list ap_copy;
   va_copy(ap_copy, ap);
 #if _MSC_VER >= 1400
@@ -59,7 +59,7 @@ static int vasprintf(char** strp, const char* fmt, va_list ap) {
 
   if (len < 0) return -1;
 
-  // 2) ·ÖÅä»º³å²¢¸ñÊ½»¯
+  // 2) åˆ†é…ç¼“å†²å¹¶æ ¼å¼åŒ–
   char* buf = static_cast<char*>(std::malloc(static_cast<size_t>(len) + 1));
   if (!buf) return -1;
 
@@ -70,7 +70,7 @@ static int vasprintf(char** strp, const char* fmt, va_list ap) {
   }
 
   *strp = buf;
-  return written; // ·µ»ØĞ´ÈëµÄ×Ö·ûÊı£¨²»º¬ '\0'£©
+  return written; // è¿”å›å†™å…¥çš„å­—ç¬¦æ•°ï¼ˆä¸å« '\0'ï¼‰
 }
 #endif
 // ==== end shim ====
