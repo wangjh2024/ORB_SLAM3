@@ -12,7 +12,6 @@ set(CMAKE_DISABLE_FIND_PACKAGE_Sophus TRUE)
 
 message(STATUS "Forcing use of project Sophus: ${Sophus_INCLUDE_DIRS}")
 
-
 # 设置所有已知的策略以消除警告
 cmake_policy(SET CMP0157 OLD)  # 旧版本兼容性
 cmake_policy(SET CMP0167 NEW)  # FindBoost 模块
@@ -21,8 +20,6 @@ cmake_policy(SET CMP0135 NEW)  # FindPackage 模式
 cmake_policy(SET CMP0126 NEW)  # 策略版本
 cmake_policy(SET CMP0115 NEW)  # 源文件存在性检查
 cmake_policy(SET CMP0114 NEW)  # 文件 GLOB 递归
-# 设置策略以兼容旧版本 CMake
-cmake_policy(SET CMP0157 OLD)
 
 # 设置默认构建类型
 if(NOT CMAKE_BUILD_TYPE)
@@ -36,47 +33,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-
-
-
-# 强制禁用 Boost 序列化
-add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
-message(STATUS "Boost serialization explicitly disabled.")
-
-# 仍然查找 Boost，但只用于其他组件（例如 system, filesystem），不依赖 serialization
-find_package(Boost COMPONENTS system filesystem)
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS})
-    message(STATUS "Boost found: ${Boost_VERSION}")
-else()
-    message(WARNING "Boost not found, some features may be disabled.")
-endif()
-
-# # 强制禁用 Boost 序列化
-# add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
-# message(STATUS "Boost serialization explicitly disabled.")
-
-# # 仍然查找 Boost，但只用于其他组件
-# find_package(Boost COMPONENTS system filesystem)
-# if(Boost_FOUND)
-#     include_directories(${Boost_INCLUDE_DIRS})
-#     message(STATUS "Boost found: ${Boost_VERSION}")
-# else()
-#     message(WARNING "Boost not found, some features may be disabled.")
-# endif()
-
-
-
-
-
-
 # 平台特定设置
 if(WIN32)
     add_definitions(-D_USE_MATH_DEFINES -D_CRT_SECURE_NO_WARNINGS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
     
-    
-    # Windows 特定修复 - 添加这些定义
+    # Windows 特定修复
     add_definitions(
         -D_CRT_SECURE_NO_WARNINGS
         -DNOMINMAX
@@ -89,7 +51,6 @@ if(WIN32)
         /W3
         /wd4267 /wd4244 /wd4305 /wd4819 /wd4996 /wd4018
         /wd4251 /wd4275
-        # /wd2872  # 禁用 byte 冲突警告
         /D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING
         /D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
         /D_CRT_SECURE_NO_WARNINGS
@@ -97,14 +58,6 @@ if(WIN32)
         /D_HAS_STD_BYTE=0  # 明确禁用 std::byte
     )
 
-    # # Boost 序列化修复
-    # add_definitions(
-    #     -DBOOST_SERIALIZATION_ACCESS=friend
-    #     -DBOOST_ALL_NO_LIB
-    #     -DBOOST_SERIALIZATION_DYN_LINK
-    #     -DBOOST_ALLOW_DEPRECATED_HEADERS
-    # )
-    
     # 设置运行时库
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
@@ -166,13 +119,46 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 # Pangolin 查找优化
 find_package(Pangolin REQUIRED)
 
-# Boost 查找优化
+# ========== Boost 查找优化 - 修正路径 ==========
+# 设置正确的 Boost 路径（根据您的图片）
+set(BOOST_ROOT "E:/code/3rd_party/boost_1_83_0")
+set(Boost_DIR "${BOOST_ROOT}")
+
+# Boost 查找配置 - 避免与 vcpkg 冲突
+set(Boost_NO_SYSTEM_PATHS ON)
+set(Boost_NO_BOOST_CMAKE ON)
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
-find_package(Boost REQUIRED COMPONENTS serialization system filesystem)
 
-if(Boost_FOUND AND Boost_VERSION VERSION_LESS 1.71)
-    message(WARNING "Boost version ${Boost_VERSION} may have compatibility issues")
+# 强制禁用 Boost 序列化
+add_definitions(-DUSE_BOOST_SERIALIZATION=OFF)
+message(STATUS "Boost serialization explicitly disabled.")
+
+# 查找 Boost 包（只查找 system 和 filesystem）
+find_package(Boost COMPONENTS system filesystem
+    PATHS "${BOOST_ROOT}"
+    PATH_SUFFIXES "lib64-msvc-14.3"
+    NO_DEFAULT_PATH
+)
+
+if(Boost_FOUND)
+    message(STATUS "Boost found: ${Boost_VERSION}")
+    message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
+    message(STATUS "Boost library dir: ${Boost_LIBRARY_DIRS}")
+    
+    if(Boost_VERSION VERSION_LESS 1.71)
+        message(WARNING "Boost version ${Boost_VERSION} may have compatibility issues")
+    endif()
+else()
+    message(WARNING "Boost not found at specified path: ${BOOST_ROOT}")
+    # 尝试系统查找作为备用
+    set(Boost_NO_SYSTEM_PATHS OFF)
+    find_package(Boost COMPONENTS system filesystem QUIET)
+    if(Boost_FOUND)
+        message(STATUS "Boost found via system search: ${Boost_VERSION}")
+    else()
+        message(WARNING "Boost not found, some features may be disabled.")
+    endif()
 endif()
 
 # 其他依赖
@@ -275,28 +261,35 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/CameraModels>
     $<INSTALL_INTERFACE:include>
 )
-include_directories(${PROJECT_SOURCE_DIR}/Thirdparty/Sophus)
 
 target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE
     ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
     ${EIGEN3_INCLUDE_DIR}
     ${Pangolin_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
-    ${Boost_INCLUDE_DIRS}
 )
+
+# 有条件地添加 Boost 包含目录
+if(Boost_FOUND)
+    target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
+endif()
 
 # 链接库
 target_link_libraries(${PROJECT_NAME} PUBLIC
     ${OpenCV_LIBS}
     ${Pangolin_LIBRARIES}
-    ${Boost_LIBRARIES}
-    # ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release/g2o.lib
-    # ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/Release/DBoW2.lib
-
     DBoW2
     g2o
     Threads::Threads
 )
+
+# 有条件地链接 Boost 库
+if(Boost_FOUND)
+    target_link_libraries(${PROJECT_NAME} PUBLIC 
+        Boost::system 
+        Boost::filesystem
+    )
+endif()
 
 # 设置目标属性
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -463,10 +456,11 @@ message(STATUS "Dependencies:")
 message(STATUS "  OpenCV: ${OpenCV_VERSION} (${OpenCV_DIR})")
 message(STATUS "  Eigen3: ${EIGEN3_VERSION_STRING}")
 message(STATUS "  Pangolin: ${Pangolin_VERSION}")
-message(STATUS "  Boost: ${Boost_VERSION}")
+message(STATUS "  Boost: ${Boost_FOUND} (Version: ${Boost_VERSION})")
 message(STATUS "  RealSense2: ${realsense2_FOUND}")
 message(STATUS "")
 message(STATUS "Paths:")
+message(STATUS "  Boost Path: ${BOOST_ROOT}")
 message(STATUS "  Library Output: ${LIBRARY_OUTPUT_PATH}")
 message(STATUS "  Executable Output: ${EXECUTABLE_OUTPUT_PATH}")
 message(STATUS "  Thirdparty Libraries: Built from source")
