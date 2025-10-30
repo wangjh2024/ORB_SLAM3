@@ -1,8 +1,8 @@
 /**
 * This file is part of ORB-SLAM3
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. GÃ³mez RodrÃ­guez, JosÃ© M.M. Montiel and Juan D. TardÃ³s, University of Zaragoza.
-* Copyright (C) 2014-2016 RaÃºl Mur-Artal, JosÃ© M.M. Montiel and Juan D. TardÃ³s, University of Zaragoza.
+* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gè´¸mez Rodré“†guez, JosèŒ… M.M. Montiel and Juan D. Tardè´¸s, University of Zaragoza.
+* Copyright (C) 2014-2016 Raç…¤l Mur-Artal, JosèŒ… M.M. Montiel and Juan D. Tardè´¸s, University of Zaragoza.
 *
 * ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 * License as published by the Free Software Foundation, either version 3 of the License, or
@@ -29,18 +29,18 @@
 #include <opencv2/core/core.hpp>
 #include <mutex>
 
-// ĞŞ¸ÄBoost°üº¬Ë³ĞòºÍ·½Ê½
-#define BOOST_ALLOW_DEPRECATED_HEADERS  // ÔÊĞíÊ¹ÓÃ²»ÍÆ¼öµÄÍ·ÎÄ¼ş
+// ä¿®æ”¹BooståŒ…å«é¡ºåºå’Œæ–¹å¼
+#define BOOST_ALLOW_DEPRECATED_HEADERS  // å…è®¸ä½¿ç”¨ä¸æ¨èçš„å¤´æ–‡ä»¶
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/map.hpp>
 
-// ÏÔÊ½°üº¬accessÍ·ÎÄ¼ş
+// æ˜¾å¼åŒ…å«accesså¤´æ–‡ä»¶
 #include <boost/serialization/access.hpp>
 
 namespace ORB_SLAM3
 {
-	// ±£³ÖÆäËû´úÂë²»±ä...
+	// ä¿æŒå…¶ä»–ä»£ç ä¸å˜...
 
 	class KeyFrame;
 	class Map;

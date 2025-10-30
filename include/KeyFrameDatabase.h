@@ -1,8 +1,8 @@
 /**
 * This file is part of ORB-SLAM3
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
-* Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. G贸mez Rodr铆guez, Jos茅 M.M. Montiel and Juan D. Tard贸s, University of Zaragoza.
+* Copyright (C) 2014-2016 Ra煤l Mur-Artal, Jos茅 M.M. Montiel and Juan D. Tard贸s, University of Zaragoza.
 *
 * ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 * License as published by the Free Software Foundation, either version 3 of the License, or
@@ -34,7 +34,7 @@
 #include <boost/serialization/list.hpp>
 #include <boost/serialization/access.hpp>
 #include "win_compat_undef_access.h"
-#include <boost/serialization/access.hpp>  // ������ʽ����
+#include <boost/serialization/access.hpp>  // 建议显式包含
 
 #include<mutex>
 
