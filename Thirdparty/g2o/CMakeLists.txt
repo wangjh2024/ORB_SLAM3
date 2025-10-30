@@ -2,10 +2,45 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.20)
 SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
 
 PROJECT(g2o)
-
+# 在文件开头附近添加
+if(MSVC)
+    # 移除不兼容的 GCC 选项
+    string(REPLACE "-O3" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REPLACE "-march=native" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    
+    # 添加 MSVC 兼容的优化选项
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2")
+    endif()
+    
+    # 添加异常处理选项
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+    
+    # 禁用特定警告
+    add_compile_options(/wd4819)  # 文件编码警告
+    add_compile_options(/wd4267)  # size_t 转换警告
+    add_compile_options(/wd4244)  # 类型转换警告
+    add_compile_options(/wd4530)  # 异常处理警告
+endif()
 SET(g2o_C_FLAGS)
 SET(g2o_CXX_FLAGS)
 # 在 CMakeLists.txt 中添加
+# 在 g2o 的 CMakeLists.txt 开头添加
+if(WIN32)
+    add_definitions(-DNOMINMAX)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    
+    # 移除不兼容的 GCC 选项
+    if(MSVC)
+        string(REPLACE "-O3" "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+        string(REPLACE "-march=native" "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
+    endif()
+endif()
+# 在 g2o 的 CMakeLists.txt 中添加
+if(WIN32)
+    list(APPEND G2O_STUFF_SOURCES vasprintf_win.cpp)
+endif()
 if(MSVC)
     # 禁用 Windows.h 中的 min/max 宏
     add_definitions(-DNOMINMAX)
@@ -19,7 +54,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 MESSAGE(STATUS "BUILD TYPE:" ${CMAKE_BUILD_TYPE})
@@ -189,7 +224,7 @@ g2o/core/robust_kernel_impl.h
 g2o/stuff/string_tools.h
 g2o/stuff/color_macros.h 
 g2o/stuff/macros.h
-g2o/stuff/timeutil.cpp
+# g2o/stuff/timeutil.cpp
 g2o/stuff/misc.h
 g2o/stuff/timeutil.h
 g2o/stuff/os_specific.c    

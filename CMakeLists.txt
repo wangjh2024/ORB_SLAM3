@@ -248,7 +248,7 @@ else()
     # 手动查找 g2o 库
     find_library(G2O_LIBRARY
         NAMES g2o libg2o
-        PATHS ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib
+        PATHS ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/RelWithDebInfo
               ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release
         NO_DEFAULT_PATH
     )

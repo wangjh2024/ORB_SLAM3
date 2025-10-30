@@ -39,28 +39,9 @@
 #include <string>
 #include <sstream>
 #include <vector>
-#ifdef _WIN32
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
 
-// Windows 兼容的 vasprintf 实现
-int vasprintf(char** strp, const char* fmt, va_list ap) {
-	int size = _vscprintf(fmt, ap);
-	if (size < 0) return -1;
 
-	*strp = (char*)malloc(size + 1);
-	if (*strp == NULL) return -1;
 
-	int result = vsnprintf(*strp, size + 1, fmt, ap);
-	if (result < 0) {
-		free(*strp);
-		return -1;
-	}
-
-	return result;
-}
-#endif
 // 使用标准库替代 vasprintf
 std::string formatString(const char* fmt, ...) {
 	va_list args;
