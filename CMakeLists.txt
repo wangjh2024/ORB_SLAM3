@@ -1,10 +1,15 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.20)
 project(ORB_SLAM3)
 
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)
 ENDIF()
 
+#=== 3. 依赖库路径配置（按需改成本机路径） =====================================
+set(OpenCV_DIR   "E:/3rd_party/opencv/build")
+set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
+set(BOOST_ROOT   "E:/3rd_party/boost_1_83_0")
+set(GLEW_ROOT    "E:/3rd_party/glew-2.2.0")
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -W0 -MT -bigobj")
@@ -35,9 +40,9 @@ endif()
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
-find_package(OpenCV 3)
+find_package(OpenCV 4)
 if(NOT OpenCV_FOUND)
-   find_package(OpenCV 2.4.3 QUIET)
+   find_package(OpenCV 4.10 QUIET)
    if(NOT OpenCV_FOUND)
       message(FATAL_ERROR "OpenCV > 2.4.3 not found.")
    endif()
@@ -46,7 +51,7 @@ endif()
 MESSAGE("OPENCV VERSION:")
 MESSAGE(${OpenCV_VERSION})
 
-find_package(Eigen3 3.1.0 REQUIRED)
+find_package(Eigen3 3.4.0 REQUIRED)
 find_package(Pangolin REQUIRED)
 
 include_directories(
