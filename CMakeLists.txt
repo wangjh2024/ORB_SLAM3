@@ -9,7 +9,7 @@ set(Pangolin_INCLUDE_DIRS "E:/3rd_party/pangolin-install/include")
 set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
 set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
 set(DBoW2_LIB  "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
-set(G2O_LIB    "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/g2o.lib")
+set(G2O_LIB    "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release/g2o.lib")
 
 #=== 1. 基本构建配置 ===
 if(NOT CMAKE_BUILD_TYPE)
@@ -37,6 +37,16 @@ if(MSVC)
   set(WIN_FORCE_INCLUDE "${PROJECT_SOURCE_DIR}/include/win_gl_preinclude.h")
   set(WIN_UNDEF_ACCESS  "${PROJECT_SOURCE_DIR}/include/win_compat_undef_access.h")
   add_compile_options(/FI"${WIN_FORCE_INCLUDE}" /FI"${WIN_UNDEF_ACCESS}")
+endif()
+
+# 改进的强制预包含配置
+if(MSVC)
+  # 检查预包含头文件是否存在
+  if(EXISTS "${WIN_FORCE_INCLUDE}" AND EXISTS "${WIN_UNDEF_ACCESS}")
+    add_compile_options(/FI"${WIN_FORCE_INCLUDE}" /FI"${WIN_UNDEF_ACCESS}")
+  else()
+    message(WARNING "Force include headers not found, Windows GL conflicts may occur")
+  endif()
 endif()
 
 #=== 3. 全局宏定义（修复 Windows + OpenGL 头文件冲突） ===
@@ -110,12 +120,14 @@ else()
     INTERFACE_LINK_LIBRARIES "${PANGOLIN_LIBS};OpenGL::GL;${GLEW_LIB_TARGET}")
 endif()
 
-# === 11. 依赖：Boost（手动配置，避免版本冲突） ===
-#=== 11. 依赖：Boost（修复版本）===
+#=== 11. 依赖：Boost（统一配置） ===
 set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
 
+# 定义需要的组件
+set(REQUIRED_BOOST_LIBS serialization filesystem system)
+
 # 优先使用 CMake 的 FindBoost
-find_package(Boost 1.83.0 QUIET COMPONENTS serialization filesystem system)
+find_package(Boost 1.83.0 QUIET COMPONENTS ${REQUIRED_BOOST_LIBS})
 
 if(Boost_FOUND)
   message(STATUS "Boost found via CMake: ${Boost_VERSION}")
@@ -134,39 +146,44 @@ else()
     message(FATAL_ERROR "Boost headers not found in ${BOOST_INCLUDE_DIR}")
   endif()
 
-  # 手动创建 Boost 目标
-  add_library(Boost::serialization INTERFACE IMPORTED)
-  set_target_properties(Boost::serialization PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
-  )
+  # 为每个组件创建接口目标
+  foreach(component ${REQUIRED_BOOST_LIBS})
+    add_library(Boost::${component} INTERFACE IMPORTED)
+    set_target_properties(Boost::${component} PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
+    )
+    
+    # 如果有编译的库文件，添加链接
+    if(EXISTS "${BOOST_ROOT}/lib")
+      link_directories("${BOOST_ROOT}/lib")
+      # 尝试查找具体的库文件
+      if(MSVC)
+        set(lib_suffix "vc143-mt-x64-1_83.lib")  # 根据你的编译环境调整
+        if(EXISTS "${BOOST_ROOT}/lib/libboost_${component}${lib_suffix}")
+          set_property(TARGET Boost::${component} PROPERTY
+            INTERFACE_LINK_LIBRARIES "libboost_${component}${lib_suffix}")
+        endif()
+      endif()
+    endif()
+  endforeach()
   
-  add_library(Boost::filesystem INTERFACE IMPORTED)
-  set_target_properties(Boost::filesystem PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
-  )
-  
-  add_library(Boost::system INTERFACE IMPORTED)
-  set_target_properties(Boost::system PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
-  )
-  
-  # 添加库路径（如果有编译的库）
-  if(EXISTS "${BOOST_ROOT}/lib")
-    link_directories("${BOOST_ROOT}/lib")
-  endif()
+  set(Boost_INCLUDE_DIRS ${BOOST_INCLUDE_DIR})
 endif()
 
-
-#=== 12. 头文件路径 ===
+#=== 12. 头文件路径（使用传统的 include_directories） ===
 include_directories(
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/include/CameraModels
   ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
   ${Pangolin_INCLUDE_DIRS}
-  # ${BOOST_INCLUDE_DIR}
-
 )
+
+if(Boost_FOUND)
+  include_directories(${Boost_INCLUDE_DIRS})
+else()
+  include_directories(${BOOST_INCLUDE_DIR})
+endif()
 
 #=== 13. 主库源文件收集 ===
 set(ORBSLAM3_SOURCES
@@ -236,39 +253,37 @@ set(ORBSLAM3_HEADERS
 add_library(${PROJECT_NAME} SHARED ${ORBSLAM3_SOURCES} ${ORBSLAM3_HEADERS})
 
 #=== 15. 宏与链接（目标级） ===
-#=== 15. 链接 ===
-target_compile_definitions(${PROJECT_NAME}
-  PRIVATE ORB_SLAM3_EXPORTS COMPILEDWITHC11 WIN32_LEAN_AND_MEAN NOMINMAX)
-
-# 包含 Boost 头文件目录
-target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
-
-target_link_libraries(${PROJECT_NAME}
-  PRIVATE
-    ${OpenCV_LIBS}
-    OpenGL::GL
-    ${GLEW_LIB_TARGET}
-    Pangolin::pangolin
-    Threads::Threads
-    ${DBoW2_LIB}
-    ${G2O_LIB}
-    Boost::serialization
-    Boost::filesystem  
-    Boost::system
+#=== 15. 宏与链接（目标级） ===
+target_compile_definitions(${PROJECT_NAME} PRIVATE 
+  ORB_SLAM3_EXPORTS 
+  COMPILEDWITHC11
 )
 
-# 条件性链接 Boost 库
+# 使用 target_include_directories 添加私有头文件路径
+target_include_directories(${PROJECT_NAME} PRIVATE
+  ${PROJECT_SOURCE_DIR}/include/CameraModels
+)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  ${OpenCV_LIBS}
+  OpenGL::GL
+  ${GLEW_LIB_TARGET}
+  Pangolin::pangolin
+  Threads::Threads
+  ${DBoW2_LIB}
+  ${G2O_LIB}
+)
+
+# Boost 链接
 if(Boost_FOUND)
   target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
 else()
-  # 使用手动创建的导入目标
   foreach(component ${REQUIRED_BOOST_LIBS})
     if(TARGET Boost::${component})
       target_link_libraries(${PROJECT_NAME} PRIVATE Boost::${component})
     endif()
   endforeach()
 endif()
-
 #=== 16. Examples 构建函数 ===
 function(build_example example_list base_dir suffix)
   foreach(example ${example_list})
@@ -310,8 +325,19 @@ build_example("${EXAMPLES}" "Examples" "exe")
 build_example("${EXAMPLES_OLD}" "Examples_old" "old")
 
 #=== 19. 打印关键信息 ===
-message(STATUS "OpenCV libs: ${OpenCV_LIBS}")
-message(STATUS "Eigen include: ${EIGEN3_INCLUDE_DIR}")
-message(STATUS "Pangolin include: ${Pangolin_INCLUDE_DIRS}")
-message(STATUS "Boost include: ${Boost_INCLUDE_DIRS}")
-message(STATUS "Using GLEW: ${GLEW_LIB_TARGET}")
+#=== 19. 依赖验证 ===
+# 检查必要的头文件是否存在
+foreach(header ${ORBSLAM3_HEADERS})
+  if(NOT EXISTS "${PROJECT_SOURCE_DIR}/${header}")
+    message(WARNING "Header file not found: ${header}")
+  endif()
+endforeach()
+
+# 检查第三方库文件
+if(NOT EXISTS "${DBoW2_LIB}")
+  message(FATAL_ERROR "DBoW2 library not found: ${DBoW2_LIB}")
+endif()
+
+if(NOT EXISTS "${G2O_LIB}")
+  message(FATAL_ERROR "g2o library not found: ${G2O_LIB}")
+endif()
