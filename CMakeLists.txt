@@ -218,11 +218,25 @@ target_include_directories(${PROJECT_NAME}
         ${GLEW_INCLUDE_DIRS}
 )
 
+#=== B. 目标级：主库再上一次保险 ===
+if(MSVC)
+  target_compile_options(${PROJECT_NAME} PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:/Uaccess /FI"${BOOST_COMPAT_HEADER}">
+  )
+endif()
 #--- 9.x 必改#2：主库强制优先包含 boost_compat.h（消除 access 宏污染） ---------
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/FI"${BOOST_COMPAT_HEADER}">)
 endif()
 
+#=== A. 目录级：最先强制包含 + 起手就 /Uaccess ===
+if(MSVC)
+  add_compile_options(
+    $<$<COMPILE_LANGUAGE:CXX>:/Uaccess>
+    $<$<COMPILE_LANGUAGE:CXX>:/FI"${BOOST_COMPAT_HEADER}">
+  )
+  add_compile_definitions(_CRT_DECLARE_NONSTDC_NAMES=0)
+endif()
 #=== 10. 第三方库 g2o（含 必改#3/#4） =========================================
 message(STATUS "开始构建第三方库...")
 
@@ -239,9 +253,56 @@ endif()
 if(MSVC)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/FI"${BOOST_COMPAT_HEADER}">)
 endif()
+#=== A1: 目录级强制最先包含 boost_compat.h，且起手就 /Uaccess 清场 ===
+if(MSVC)
+    # 先把历史/环境里残留的 access 宏清掉
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/Uaccess>)
+    # 再保证每个翻译单元最先 include 我们的“净化头”
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/FI"${BOOST_COMPAT_HEADER}">)
+    # 全局禁止 MSVC 为 POSIX 函数生成别名宏（含 access）
+    add_compile_definitions(_CRT_DECLARE_NONSTDC_NAMES=0)
+endif()
 
 #--- 10.1 添加 g2o 子目录 ------------------------------------------------------
 add_subdirectory(Thirdparty/g2o)
+#=== B1: 提升编译余量（全局） ===
+if(MSVC)
+    # /bigobj 你已有；再加一些稳妥的选项
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        /Zm300            # 提高编译器内部配额
+        /FS               # 并行写 PDB 更稳定
+    )
+endif()
+
+#=== B2: 对 Eigen 重型源文件定点降优化，缓解 C1060 ===
+set(EIGEN_HEAVY_SOURCES
+    src/Optimizer.cc
+    src/Tracking.cc
+    src/LocalMapping.cc
+    src/LoopClosing.cc
+    src/TwoViewReconstruction.cc
+    src/FrameDrawer.cc
+    src/Frame.cc
+    src/Map.cc
+    src/MapDrawer.cc
+    src/KeyFrame.cc
+    src/Atlas.cc
+    src/G2oTypes.cc
+    src/Sim3Solver.cc
+    src/MLPnPsolver.cpp
+    src/GeometricTools.cc
+    src/CameraModels/Pinhole.cpp
+    src/CameraModels/KannalaBrandt8.cpp
+)
+
+if(MSVC)
+    foreach(src ${EIGEN_HEAVY_SOURCES})
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${src}")
+            # /O1: 减优化；/Ob1: 降内联；必要时可再加 /Od 调试
+            set_source_files_properties(${src} PROPERTIES COMPILE_OPTIONS "/O1;/Ob1")
+        endif()
+    endforeach()
+endif()
 
 #--- 10.2 还原全局编译选项 ------------------------------------------------------
 set(CMAKE_CXX_FLAGS ${OLD_CMAKE_CXX_FLAGS})
