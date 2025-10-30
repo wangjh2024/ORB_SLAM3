@@ -18,8 +18,9 @@ if(WIN32)
     add_definitions(-DG2O_EXPORTS)
 endif()
 
+
 #=== 4. 手动指定 Eigen3 头文件路径 ===
-set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
+# set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
 include_directories(${EIGEN3_INCLUDE_DIR})
 
 #=== 5. 构建类型：Release by default ===
