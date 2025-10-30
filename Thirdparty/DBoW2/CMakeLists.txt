@@ -6,16 +6,32 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# === 关键设置：生成静态库 ===
+set(BUILD_SHARED_LIBS OFF)  # 强制生成静态库
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # 使用vcpkg工具链（如果存在）
 if(EXISTS "E:/3rd_party/vcpkg/scripts/buildsystems/vcpkg.cmake")
     set(CMAKE_TOOLCHAIN_FILE "E:/3rd_party/vcpkg/scripts/buildsystems/vcpkg.cmake")
     message(STATUS "Using vcpkg toolchain")
 endif()
 
+# === 设置静态库输出路径 ===
+set(DBoW2_LIB_OUTPUT "${PROJECT_SOURCE_DIR}/lib/DBoW2.lib")
+message(STATUS "DBoW2 static library will be output to: ${DBoW2_LIB_OUTPUT}")
+
 # 设置输出目录
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+
+# 根据配置设置输出目录
+foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_SOURCE_DIR}/lib)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_SOURCE_DIR}/lib)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_SOURCE_DIR}/bin)
+endforeach()
 
 # === 手动配置 Boost ===
 set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
@@ -36,38 +52,30 @@ set_target_properties(Boost::headers PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
 )
 
-# === 手动配置 OpenCV（根据图片修正路径）===
-# 根据图片，OpenCV的正确路径应该是：
-set(OPENCV_ROOT "E:/3rd_party/opencv")
-set(OPENCV_BUILD_DIR "${OPENCV_ROOT}/build")  # 这是图片中显示的路径
-
-# 检查OpenCV配置文件是否存在
-if(EXISTS "${OPENCV_BUILD_DIR}/OpenCVConfig.cmake")
-    message(STATUS "Found OpenCVConfig.cmake at: ${OPENCV_BUILD_DIR}")
-    
-    # 使用CMake的find_package来正确配置OpenCV
-    set(OpenCV_DIR "${OPENCV_BUILD_DIR}")
+# === 配置 OpenCV（根据图片中的路径）===
+set(OpenCV_DIR "E:/3rd_party/opencv/build")
+if(EXISTS "${OpenCV_DIR}/OpenCVConfig.cmake")
     find_package(OpenCV REQUIRED)
-    
-    message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+    message(STATUS "OpenCV found: ${OpenCV_VERSION}")
     message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
-    message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
 else()
-    message(FATAL_ERROR "OpenCVConfig.cmake not found in ${OPENCV_BUILD_DIR}. "
-            "Please check your OpenCV installation.")
+    message(FATAL_ERROR "OpenCV not found at: ${OpenCV_DIR}")
 endif()
 
-# 编译器设置
+# === 编译器设置（针对静态库优化）===
 if(MSVC)
+    # 静态库编译选项
     add_compile_options(/W3 /wd4267 /wd4244 /wd4996 /MP)
+    
+    # 设置静态运行时库
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(/O2 /Ob2 /DNDEBUG)
+        add_compile_options(/O2 /Ob2 /DNDEBUG /MT)
     else()
-        add_compile_options(/Od /Zi)
+        add_compile_options(/Od /Zi /MTd)
     endif()
 endif()
 
-# 源文件定义
+# === 源文件定义 ===
 set(DBOW2_SOURCES
     DBoW2/BowVector.cpp
     DBoW2/FORB.cpp
@@ -77,8 +85,17 @@ set(DBOW2_SOURCES
     DUtils/Timestamp.cpp
 )
 
-# 创建库目标
-add_library(DBoW2 SHARED ${DBOW2_SOURCES})
+# === 创建静态库目标 ===
+add_library(DBoW2 STATIC ${DBOW2_SOURCES})
+
+# 设置目标属性（确保输出到指定路径）
+set_target_properties(DBoW2 PROPERTIES
+    OUTPUT_NAME "DBoW2"
+    ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin"
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/lib"
+    POSITION_INDEPENDENT_CODE ON
+)
 
 # 包含目录
 target_include_directories(DBoW2 PUBLIC 
@@ -92,16 +109,54 @@ target_link_libraries(DBoW2 PUBLIC
     Boost::headers
 )
 
-# 禁用自动DLL复制
+# 添加静态库编译定义
+target_compile_definitions(DBoW2 PRIVATE 
+    DBoW2_STATIC
+    DBoW2_EXPORTS
+    $<$<CONFIG:Release>:NDEBUG>
+)
+
+# 禁用自动DLL复制（静态库不需要）
 set(VCPKG_APPLOCAL_DEPS OFF)
+
+# === 安装规则 ===
+install(TARGETS DBoW2
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include
+)
+
+install(FILES 
+    DBoW2/BowVector.h
+    DBoW2/FORB.h
+    DBoW2/FClass.h
+    DBoW2/FeatureVector.h
+    DBoW2/ScoringObject.h
+    DBoW2/TemplatedVocabulary.h
+    DUtils/Random.h
+    DUtils/Timestamp.h
+    DESTINATION include/DBoW2
+)
+
+# === 构建后验证 ===
+# 添加自定义目标来验证库文件生成
+add_custom_command(TARGET DBoW2 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "DBoW2 static library built successfully: ${DBoW2_LIB_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_SOURCE_DIR}/lib"
+    COMMENT "Verifying DBoW2 static library output"
+)
+
+# === 导出变量供父项目使用 ===
+set(DBoW2_LIB "${DBoW2_LIB_OUTPUT}" CACHE INTERNAL "Path to DBoW2 static library")
+set(DBoW2_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "Path to DBoW2 include directory")
 
 # 配置总结
 message(STATUS "")
-message(STATUS "=== DBoW2 Configuration Summary ===")
-message(STATUS "Build type:          ${CMAKE_BUILD_TYPE}")
-message(STATUS "C++ standard:        14")
-message(STATUS "Boost include:       ${BOOST_INCLUDE_DIR}")
-message(STATUS "OpenCV root:         ${OPENCV_ROOT}")
-message(STATUS "OpenCV build dir:    ${OPENCV_BUILD_DIR}")
-message(STATUS "OpenCV version:      ${OpenCV_VERSION}")
+message(STATUS "=== DBoW2 Static Library Configuration ===")
+message(STATUS "Static library output: ${DBoW2_LIB_OUTPUT}")
+message(STATUS "Build type:           STATIC")
+message(STATUS "C++ standard:         14")
+message(STATUS "Boost include:        ${BOOST_INCLUDE_DIR}")
+message(STATUS "OpenCV version:       ${OpenCV_VERSION}")
+message(STATUS "Output directory:     ${PROJECT_SOURCE_DIR}/lib")
 message(STATUS "================================")
