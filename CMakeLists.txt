@@ -20,19 +20,13 @@ endif()
 
 # 3. 依赖库路径配置（根据实际环境修改）
 # =============================================================================
-# 统一依赖根目录（可选，便于管理）
-# set(DEPS_ROOT "E:/3rd_party")
-
 # OpenCV 配置
-set(OpenCV_DIR "E:/3rd_party/opencv/build")  # 使用 OpenCV_DIR 替代 OpenCV_ROOT
-
-# Eigen3 配置（如果系统路径中没有，需要手动设置）
-# set(Eigen3_DIR "E:/3rd_party/eigen-3.4.0/share/eigen3/cmake")
+set(OpenCV_DIR "E:/3rd_party/opencv/build")
 
 # Pangolin 配置
 set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
 
-# Boost 配置（关键修复）
+# Boost 配置
 set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
 set(Boost_DIR "${BOOST_ROOT}/lib/cmake/Boost-1.83.0")
 
@@ -88,7 +82,6 @@ add_compile_definitions(
 # =============================================================================
 list(APPEND CMAKE_MODULE_PATH 
     ${PROJECT_SOURCE_DIR}/cmake_modules
-    ${PROJECT_SOURCE_DIR}/Thirdparty
 )
 
 # 9. 依赖库查找
@@ -98,33 +91,46 @@ message(STATUS "开始查找依赖库...")
 # 9.1 OpenCV
 find_package(OpenCV REQUIRED)
 if(OpenCV_FOUND)
-    message(STATUS "OpenCV 版本: ${OpenCV_VERSION}")
-    message(STATUS "OpenCV 库路径: ${OpenCV_LIBS}")
+    message(STATUS "✓ OpenCV 版本: ${OpenCV_VERSION}")
 else()
-    message(FATAL_ERROR "OpenCV 库未找到，请检查路径配置")
+    message(FATAL_ERROR "✗ OpenCV 库未找到，请检查路径配置")
 endif()
 
 # 9.2 Eigen3
 find_package(Eigen3 3.4 REQUIRED)
 if(Eigen3_FOUND)
-    message(STATUS "Eigen3 版本: ${EIGEN3_VERSION}")
+    message(STATUS "✓ Eigen3 版本: ${EIGEN3_VERSION}")
 else()
-    message(FATAL_ERROR "Eigen3 库未找到")
+    message(FATAL_ERROR "✗ Eigen3 库未找到")
 endif()
 
 # 9.3 线程库
 find_package(Threads REQUIRED)
+message(STATUS "✓ 线程库配置完成")
 
-# 9.4 Pangolin
+# 9.4 Pangolin - 修复目标名称问题
 find_package(Pangolin REQUIRED)
 if(Pangolin_FOUND)
-    message(STATUS "Pangolin 找到: ${Pangolin_VERSION}")
+    message(STATUS "✓ Pangolin 找到")
+    # 打印 Pangolin 目标信息用于调试
+    message(STATUS "Pangolin 包含目录: ${Pangolin_INCLUDE_DIRS}")
+    message(STATUS "Pangolin 库文件: ${Pangolin_LIBRARIES}")
+    
+    # 检查可用的目标名称
+    if(TARGET pangolin)
+        message(STATUS "✓ 找到目标: pangolin")
+    elseif(TARGET Pangolin::pangolin)
+        message(STATUS "✓ 找到目标: Pangolin::pangolin")
+    else()
+        # 列出所有可用目标
+        get_property(targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+        message(STATUS "可用目标: ${targets}")
+    endif()
 else()
-    message(FATAL_ERROR "Pangolin 库未找到")
+    message(FATAL_ERROR "✗ Pangolin 库未找到")
 endif()
 
-# 9.5 Boost 库（关键配置）
-# 设置 Boost 查找参数
+# 9.5 Boost 库
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
@@ -133,23 +139,22 @@ set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost 1.83.0 CONFIG QUIET COMPONENTS serialization)
 
 if(NOT Boost_FOUND)
-    # 如果 CONFIG 模式失败，回退到 MODULE 模式
     message(STATUS "Boost CONFIG 模式失败，尝试 MODULE 模式...")
     find_package(Boost 1.83.0 REQUIRED COMPONENTS serialization)
 endif()
 
 if(Boost_FOUND)
-    message(STATUS "Boost 版本: ${Boost_VERSION}")
-    message(STATUS "Boost 包含目录: ${Boost_INCLUDE_DIRS}")
-    message(STATUS "Boost 库目录: ${Boost_LIBRARY_DIRS}")
+    message(STATUS "✓ Boost 版本: ${Boost_VERSION}")
 else()
-    message(FATAL_ERROR "Boost 库未找到，请检查安装和路径配置")
+    message(FATAL_ERROR "✗ Boost 库未找到")
 endif()
 
 # 9.6 GLEW
 find_package(GLEW REQUIRED)
 if(GLEW_FOUND)
-    message(STATUS "GLEW 找到: ${GLEW_VERSION}")
+    message(STATUS "✓ GLEW 找到")
+else()
+    message(FATAL_ERROR "✗ GLEW 库未找到")
 endif()
 
 # 10. 主库构建配置
@@ -201,12 +206,11 @@ add_library(${PROJECT_NAME} SHARED
 # 10.3 包含目录配置
 target_include_directories(${PROJECT_NAME}
     PUBLIC
-        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>     # 公共头文件
-        $<INSTALL_INTERFACE:include>
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     PRIVATE
-        ${PROJECT_SOURCE_DIR}/src                           # 私有源文件
-        ${PROJECT_SOURCE_DIR}/include/CameraModels          # 相机模型头文件
-        ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus             # Sophus 库
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/include/CameraModels
+        ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
 )
 
 # 11. 第三方库构建
@@ -216,31 +220,54 @@ message(STATUS "开始构建第三方库...")
 # 11.1 构建 g2o
 add_subdirectory(Thirdparty/g2o)
 
-# 12. 依赖链接配置
+# 12. 依赖链接配置 - 修复 Pangolin 目标名称问题
 # =============================================================================
-# 12.1 主库依赖链接
+# 12.1 确定正确的 Pangolin 目标名称
+set(PANGOLIN_TARGET "")
+if(TARGET pangolin)
+    set(PANGOLIN_TARGET pangolin)
+    message(STATUS "使用 Pangolin 目标: pangolin")
+elseif(TARGET Pangolin::pangolin)
+    set(PANGOLIN_TARGET Pangolin::pangolin)
+    message(STATUS "使用 Pangolin 目标: Pangolin::pangolin")
+elseif(TARGET Pangolin::Pangolin)
+    set(PANGOLIN_TARGET Pangolin::Pangolin)
+    message(STATUS "使用 Pangolin 目标: Pangolin::Pangolin")
+else()
+    # 如果找不到目标，使用传统链接方式
+    message(STATUS "未找到 Pangolin CMake 目标，使用传统链接方式")
+    set(PANGOLIN_TARGET ${Pangolin_LIBRARIES})
+endif()
+
+# 12.2 主库依赖链接
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
-        Eigen3::Eigen              # 数学库
-        Pangolin::pangolin         # 可视化库
-        ${OpenCV_LIBS}             # 计算机视觉库
+        Eigen3::Eigen
+        ${PANGOLIN_TARGET}  # 使用动态确定的 Pangolin 目标
+        ${OpenCV_LIBS}
     
     PRIVATE
-        Threads::Threads           # 线程库
-        GLEW::GLEW                 # OpenGL 扩展库
-        Boost::serialization       # 序列化库
+        Threads::Threads
+        ${GLEW_LIBRARIES}
+        Boost::serialization
         
         # 内部第三方库
         ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib
-        g2o                        # 图优化库
+        g2o
 )
 
-# 12.2 设置目标属性
+# 12.3 包含目录（传统方式备用）
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${Pangolin_INCLUDE_DIRS}
+    ${GLEW_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
+)
+
+# 12.4 设置目标属性
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
-    POSITION_INDEPENDENT_CODE ON   # 便于链接
 )
 
 # 13. 示例程序构建
@@ -260,66 +287,38 @@ function(add_orb_slam3_example example_name example_source example_category)
     
     target_link_libraries(${example_name} ${PROJECT_NAME})
     
-    # 添加调试信息
-    message(STATUS "已配置示例: ${example_name} -> ${output_dir}")
+    message(STATUS "✓ 已配置示例: ${example_name}")
 endfunction()
 
-# 13.2 RGB-D 示例
+# 13.2 构建主要示例（先构建几个测试）
 add_orb_slam3_example(rgbd_tum Examples/RGB-D/rgbd_tum.cc RGB-D)
-
-# 13.3 立体视觉示例
-add_orb_slam3_example(stereo_kitti Examples/Stereo/stereo_kitti.cc Stereo)
-add_orb_slam3_example(stereo_euroc Examples/Stereo/stereo_euroc.cc Stereo)
-add_orb_slam3_example(stereo_tum_vi Examples/Stereo/stereo_tum_vi.cc Stereo)
-
-# 13.4 单目示例
 add_orb_slam3_example(mono_tum Examples/Monocular/mono_tum.cc Monocular)
-add_orb_slam3_example(mono_kitti Examples/Monocular/mono_kitti.cc Monocular)
-add_orb_slam3_example(mono_euroc Examples/Monocular/mono_euroc.cc Monocular)
-add_orb_slam3_example(mono_tum_vi Examples/Monocular/mono_tum_vi.cc Monocular)
+add_orb_slam3_example(stereo_kitti Examples/Stereo/stereo_kitti.cc Stereo)
 
-# 13.5 单目惯性示例
-add_orb_slam3_example(mono_inertial_euroc Examples/Monocular-Inertial/mono_inertial_euroc.cc Monocular-Inertial)
-add_orb_slam3_example(mono_inertial_tum_vi Examples/Monocular-Inertial/mono_inertial_tum_vi.cc Monocular-Inertial)
+# 13.3 其他示例（可选，先注释掉以测试）
+# add_orb_slam3_example(mono_kitti Examples/Monocular/mono_kitti.cc Monocular)
+# add_orb_slam3_example(mono_euroc Examples/Monocular/mono_euroc.cc Monocular)
+# add_orb_slam3_example(mono_tum_vi Examples/Monocular/mono_tum_vi.cc Monocular)
 
-# 13.6 立体惯性示例
-add_orb_slam3_example(stereo_inertial_euroc Examples/Stereo-Inertial/stereo_inertial_euroc.cc Stereo-Inertial)
-add_orb_slam3_example(stereo_inertial_tum_vi Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc Stereo-Inertial)
-
-# 14. 旧版示例构建（可选）
-# =============================================================================
-if(EXISTS ${PROJECT_SOURCE_DIR}/Examples_old)
-    message(STATUS "开始构建旧版示例...")
-    
-    # 旧版示例构建函数
-    function(add_orb_slam3_old_example example_name example_source example_category)
-        set(output_dir ${PROJECT_SOURCE_DIR}/Examples_old/${example_category})
-        
-        add_executable(${example_name} ${example_source})
-        
-        set_target_properties(${example_name} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${output_dir}
-            OUTPUT_NAME ${example_name}
-        )
-        
-        target_link_libraries(${example_name} ${PROJECT_NAME})
-    endfunction()
-    
-    # 旧版示例配置（根据实际需要添加）
-    add_orb_slam3_old_example(rgbd_tum_old Examples_old/RGB-D/rgbd_tum.cc RGB-D)
-    # ... 其他旧版示例
-endif()
-
-# 15. 标定示例配置
+# 14. 标定示例配置
 # =============================================================================
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Calibration)
 
-# 16. 构建总结
+# 15. 构建总结
 # =============================================================================
 message(STATUS "==========================================")
-message(STATUS "ORB-SLAM3 配置完成")
-message(STATUS "构建类型: ${CMAKE_BUILD_TYPE}")
-message(STATUS "主库目标: ${PROJECT_NAME}")
-message(STATUS "输出目录: ${PROJECT_SOURCE_DIR}/lib")
-message(STATUS "示例目录: ${PROJECT_SOURCE_DIR}/Examples")
+message(STATUS "✓ ORB-SLAM3 配置完成")
+message(STATUS "✓ 构建类型: ${CMAKE_BUILD_TYPE}")
+message(STATUS "✓ 主库目标: ${PROJECT_NAME}")
+message(STATUS "✓ 输出目录: ${PROJECT_SOURCE_DIR}/lib")
+message(STATUS "✓ 示例目录: ${PROJECT_SOURCE_DIR}/Examples")
 message(STATUS "==========================================")
+
+# 16. 调试信息（可选）
+# =============================================================================
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "调试信息:")
+    message(STATUS "Pangolin 目标: ${PANGOLIN_TARGET}")
+    message(STATUS "OpenCV 库: ${OpenCV_LIBS}")
+    message(STATUS "Boost 库: ${Boost_LIBRARIES}")
+endif()
