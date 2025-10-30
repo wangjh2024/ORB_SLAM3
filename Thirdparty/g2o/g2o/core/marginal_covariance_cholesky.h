@@ -32,13 +32,11 @@
 
 #include <cassert>
 #include <vector>
-#include <unordered_map>  // 添加这行
 
-// 兼容性宏
-#if defined(_MSC_VER) && _MSC_VER >= 1900  // VS2015 及以上
-#define G2O_TR1_NS std
+#ifdef _MSC_VER
+#include <unordered_map>
 #else
-#define G2O_TR1_NS std::tr1
+#include <tr1/unordered_map>
 #endif
 
 
@@ -52,7 +50,7 @@ namespace g2o {
       /**
        * hash struct for storing the matrix elements needed to compute the covariance
        */
-      typedef std::unordered_map<int, double>     LookupMap;
+      typedef std::tr1::unordered_map<int, double>     LookupMap;
     
     public:
       MarginalCovarianceCholesky();

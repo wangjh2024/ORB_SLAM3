@@ -1,7 +1,7 @@
 /**
 * This file is part of ORB-SLAM3
 *
-* Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+* Copyright (C) 2017-2020 Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
 * Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
 *
 * ORB-SLAM3 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
@@ -20,22 +20,23 @@
 #ifndef TRACKING_H
 #define TRACKING_H
 
-#include <opencv2/core/core.hpp>
-#include <opencv2/features2d/features2d.hpp>
+#include<opencv2/core/core.hpp>
+#include<opencv2/features2d/features2d.hpp>
+#include <opencv2/video/tracking.hpp>
 
-#include "Viewer.h"
-#include "FrameDrawer.h"
-#include "Atlas.h"
-#include "LocalMapping.h"
-#include "LoopClosing.h"
-#include "Frame.h"
+#include"Viewer.h"
+#include"FrameDrawer.h"
+#include"Atlas.h"
+#include"LocalMapping.h"
+#include"LoopClosing.h"
+#include"Frame.h"
 #include "ORBVocabulary.h"
-#include "KeyFrameDatabase.h"
-#include "ORBextractor.h"
+#include"KeyFrameDatabase.h"
+#include"ORBextractor.h"
+#include "Initializer.h"
 #include "MapDrawer.h"
 #include "System.h"
 #include "ImuTypes.h"
-#include "Settings.h"
 
 #include "GeometricCamera.h"
 
@@ -51,27 +52,21 @@ class Atlas;
 class LocalMapping;
 class LoopClosing;
 class System;
-class Settings;
 
 class Tracking
 {  
 
 public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     Tracking(System* pSys, ORBVocabulary* pVoc, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Atlas* pAtlas,
-             KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, Settings* settings, const string &_nameSeq=std::string());
+             KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, const string &_nameSeq=std::string());
 
     ~Tracking();
 
-    // Parse the config file
-    bool ParseCamParamFile(cv::FileStorage &fSettings);
-    bool ParseORBParamFile(cv::FileStorage &fSettings);
-    bool ParseIMUParamFile(cv::FileStorage &fSettings);
-
     // Preprocess the input and call Track(). Extract features and performs stereo matching.
-    Sophus::SE3f GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp, string filename);
-    Sophus::SE3f GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp, string filename);
-    Sophus::SE3f GrabImageMonocular(const cv::Mat &im, const double &timestamp, string filename);
+    cv::Mat GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp, string filename);
+    cv::Mat GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp, string filename);
+    cv::Mat GrabImageMonocular(const cv::Mat &im, const double &timestamp, string filename);
+    // cv::Mat GrabImageImuMonocular(const cv::Mat &im, const double &timestamp);
 
     void GrabImuData(const IMU::Point &imuMeasurement);
 
@@ -79,7 +74,6 @@ public:
     void SetLoopClosing(LoopClosing* pLoopClosing);
     void SetViewer(Viewer* pViewer);
     void SetStepByStep(bool bSet);
-    bool GetStepByStep();
 
     // Load new settings
     // The focal lenght should be similar or scale prediction will fail when projecting points
@@ -95,26 +89,12 @@ public:
     }
 
     void CreateMapInAtlas();
-    //std::mutex mMutexTracks;
+    std::mutex mMutexTracks;
 
     //--
     void NewDataset();
     int GetNumberDataset();
     int GetMatchesInliers();
-
-    //DEBUG
-    void SaveSubTrajectory(string strNameFile_frames, string strNameFile_kf, string strFolder="");
-    void SaveSubTrajectory(string strNameFile_frames, string strNameFile_kf, Map* pMap);
-
-    float GetImageScale();
-
-#ifdef REGISTER_LOOP
-    void RequestStop();
-    bool isStopped();
-    void Release();
-    bool stopRequested();
-#endif
-
 public:
 
     // Tracking states
@@ -149,7 +129,7 @@ public:
 
     // Lists used to recover the full camera trajectory at the end of the execution.
     // Basically we store the reference keyframe for each frame and its relative transformation
-    list<Sophus::SE3f> mlRelativeFramePoses;
+    list<cv::Mat> mlRelativeFramePoses;
     list<KeyFrame*> mlpReferences;
     list<double> mlFrameTimes;
     list<bool> mlbLost;
@@ -169,28 +149,16 @@ public:
     double t0; // time-stamp of first read frame
     double t0vis; // time-stamp of first inserted keyframe
     double t0IMU; // time-stamp of IMU initialization
-    bool mFastInit = false;
 
 
     vector<MapPoint*> GetLocalMapMPS();
 
+
+    //TEST--
+    cv::Mat M1l, M2l;
+    cv::Mat M1r, M2r;
+
     bool mbWriteStats;
-
-#ifdef REGISTER_TIMES
-    void LocalMapStats2File();
-    void TrackStats2File();
-    void PrintTimeStats();
-
-    vector<double> vdRectStereo_ms;
-    vector<double> vdResizeImage_ms;
-    vector<double> vdORBExtract_ms;
-    vector<double> vdStereoMatch_ms;
-    vector<double> vdIMUInteg_ms;
-    vector<double> vdPosePred_ms;
-    vector<double> vdLMTrack_ms;
-    vector<double> vdNewKF_ms;
-    vector<double> vdTrackTotal_ms;
-#endif
 
 protected:
 
@@ -202,7 +170,8 @@ protected:
 
     // Map initialization for monocular
     void MonocularInitialization();
-    //void CreateNewMapPoints();
+    void CreateNewMapPoints();
+    cv::Mat ComputeF12(KeyFrame *&pKF1, KeyFrame *&pKF2);
     void CreateInitialMapMonocular();
 
     void CheckReplacedInLastFrame();
@@ -218,6 +187,7 @@ protected:
     void UpdateLocalKeyFrames();
 
     bool TrackLocalMap();
+    bool TrackLocalMap_old();
     void SearchLocalPoints();
 
     bool NeedNewKeyFrame();
@@ -228,6 +198,9 @@ protected:
 
     // Reset IMU biases and compute frame velocity
     void ResetFrameIMU();
+    void ComputeGyroBias(const vector<Frame*> &vpFs, float &bwx,  float &bwy, float &bwz);
+    void ComputeVelocitiesAccBias(const vector<Frame*> &vpFs, float &bax,  float &bay, float &baz);
+
 
     bool mbMapUpdated;
 
@@ -266,7 +239,7 @@ protected:
     KeyFrameDatabase* mpKeyFrameDB;
 
     // Initalization (only for monocular)
-    bool mbReadyToInitializate;
+    Initializer* mpInitializer;
     bool mbSetInit;
 
     //Local Map
@@ -288,14 +261,8 @@ protected:
 
     //Calibration matrix
     cv::Mat mK;
-    Eigen::Matrix3f mK_;
     cv::Mat mDistCoef;
     float mbf;
-    float mImageScale;
-
-    float mImuFreq;
-    double mImuPer;
-    bool mInsertKFsLost;
 
     //New KeyFrame rules (according to fps)
     int mMinFrames;
@@ -328,9 +295,9 @@ protected:
 
     bool mbCreatedMap;
 
+
     //Motion Model
-    bool mbVelocity{false};
-    Sophus::SE3f mVelocity;
+    cv::Mat mVelocity;
 
     //Color order (true RGB, false BGR, ignored if grayscale)
     bool mbRGB;
@@ -353,18 +320,7 @@ protected:
 
     int initID, lastID;
 
-    Sophus::SE3f mTlr;
-
-    void newParameterLoader(Settings* settings);
-
-#ifdef REGISTER_LOOP
-    bool Stop();
-
-    bool mbStopped;
-    bool mbStopRequested;
-    bool mbNotStop;
-    std::mutex mMutexStop;
-#endif
+    cv::Mat mTlr;
 
 public:
     cv::Mat mImRight;
