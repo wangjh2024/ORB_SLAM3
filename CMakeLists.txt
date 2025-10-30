@@ -2,12 +2,12 @@ cmake_minimum_required(VERSION 3.20)
 project(ORB_SLAM3 LANGUAGES CXX)
 
 #=== 0. 依赖路径（根据本机环境修改） ===
-set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
-set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
-set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
-set(Pangolin_INCLUDE_DIRS "E:/3rd_party/pangolin-install/include")
-# set(BOOST_ROOT "E:/3rd_party/boost17")
-set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
+# set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
+# set(EIGEN3_INCLUDE_DIR "E:/3rd_party/eigen-3.4.0-install/include/eigen3")
+# set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
+# set(Pangolin_INCLUDE_DIRS "E:/3rd_party/pangolin-install/include")
+set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
+# set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
 set(DBoW2_LIB  "${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/DBoW2.lib")
 set(G2O_LIB    "${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/g2o.lib")
 
@@ -110,36 +110,49 @@ else()
     INTERFACE_LINK_LIBRARIES "${PANGOLIN_LIBS};OpenGL::GL;${GLEW_LIB_TARGET}")
 endif()
 
+# === 11. 依赖：Boost（手动配置，避免版本冲突） ===
+set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
 
-# === 0. 手工指定 Boost 头文件与库目录 ===
-# === 0. 指定 Boost 位置（自动兼容是否带版本子目录） ===
-set(BOOST_ROOT "E:/3rd_party/PCL_1130/3rdParty/Boost")
-if (EXISTS "${BOOST_ROOT}/include/boost-1_80")
-  set(BOOST_INCLUDEDIR  "${BOOST_ROOT}/include/boost-1_80")  # 这一层里面应当直接有 boost/
-else()
-  set(BOOST_INCLUDEDIR  "${BOOST_ROOT}/include")
+# 手动配置 Boost
+set(BOOST_INCLUDE_DIR "${BOOST_ROOT}/include/boost-1_83")
+if(NOT EXISTS "${BOOST_INCLUDE_DIR}")
+  set(BOOST_INCLUDE_DIR "${BOOST_ROOT}/include")
 endif()
-set(BOOST_LIBRARYDIR  "${BOOST_ROOT}/lib")
 
-# 只在你给的路径里找
-set(Boost_NO_SYSTEM_PATHS ON)
+if(NOT EXISTS "${BOOST_INCLUDE_DIR}/boost")
+  message(FATAL_ERROR "Boost headers not found in ${BOOST_INCLUDE_DIR}")
+endif()
 
-# 如果你的库只有 Release 版本，避免 Debug 配置去找 *-gd.lib
-set(Boost_USE_DEBUG_LIBS   OFF)
-set(Boost_USE_RELEASE_LIBS ON)
+set(BOOST_LIB_DIR "${BOOST_ROOT}/lib")
+message(STATUS "Using Boost from: ${BOOST_INCLUDE_DIR}")
 
-# 如果库名里是 -s-（静态运行时），打开这一行，并确保你的工程用 /MT
-# set(Boost_USE_STATIC_RUNTIME ON)
+# 为每个需要的组件创建目标
+set(BOOST_COMPONENTS serialization filesystem system)
 
-# 如果库是静态链接（.lib 静态库而非 dll 的 import lib），打开这一行
-# set(Boost_USE_STATIC_LIBS ON)
+foreach(comp IN LISTS BOOST_COMPONENTS)
+  # 查找库文件
+  file(GLOB LIB_FILES "${BOOST_LIB_DIR}/*boost_${comp}*.lib")
+  if(LIB_FILES)
+    list(GET LIB_FILES 0 LIB_FILE)  # 取第一个匹配的文件
+    add_library(Boost::${comp} STATIC IMPORTED)
+    set_target_properties(Boost::${comp} PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
+      IMPORTED_LOCATION "${LIB_FILE}"
+    )
+    message(STATUS "Boost ${comp} library: ${LIB_FILE}")
+  else()
+    # 头文件库
+    add_library(Boost::${comp} INTERFACE IMPORTED)
+    set_target_properties(Boost::${comp} PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
+    )
+    message(STATUS "Boost ${comp}: header-only")
+  endif()
+endforeach()
 
-find_package(Boost 1.80 REQUIRED COMPONENTS serialization filesystem system)
-
-# （可选）如果你决定用 /MT，打开下面这段
-# if(MSVC)
-#   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-# endif()
+# 设置通用变量
+set(Boost_FOUND TRUE)
+set(Boost_INCLUDE_DIRS "${BOOST_INCLUDE_DIR}")
 
 
 #=== 12. 头文件路径 ===
@@ -221,9 +234,12 @@ set(ORBSLAM3_HEADERS
 add_library(${PROJECT_NAME} SHARED ${ORBSLAM3_SOURCES} ${ORBSLAM3_HEADERS})
 
 #=== 15. 宏与链接（目标级） ===
-# === 15. 链接（去掉 ${BOOST_INCLUDE_DIR}，换成 Boost:: 导入目标） ===
+#=== 15. 链接 ===
 target_compile_definitions(${PROJECT_NAME}
   PRIVATE ORB_SLAM3_EXPORTS COMPILEDWITHC11 WIN32_LEAN_AND_MEAN NOMINMAX)
+
+# 包含 Boost 头文件目录
+target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
 
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
@@ -235,10 +251,21 @@ target_link_libraries(${PROJECT_NAME}
     ${DBoW2_LIB}
     ${G2O_LIB}
     Boost::serialization
-    Boost::filesystem
+    Boost::filesystem  
     Boost::system
 )
 
+# 条件性链接 Boost 库
+if(Boost_FOUND)
+  target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
+else()
+  # 使用手动创建的导入目标
+  foreach(component ${REQUIRED_BOOST_LIBS})
+    if(TARGET Boost::${component})
+      target_link_libraries(${PROJECT_NAME} PRIVATE Boost::${component})
+    endif()
+  endforeach()
+endif()
 
 #=== 16. Examples 构建函数 ===
 function(build_example example_list base_dir suffix)
