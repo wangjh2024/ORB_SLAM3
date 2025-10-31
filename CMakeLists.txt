@@ -47,8 +47,9 @@ add_definitions(-DCOMPILEDWITHC11 -DORB_SLAM3_EXPORTS)
 set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
 set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin") 
 set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
-set(Boost_ROOT "E:/3rd_party/boost_1_83_0")
-
+set(Boost_ROOT "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3/cmake/Boost-1.83.0")
+# E:\3rd_party\boost_1_83_0\stage\lib\cmake\Boost-1.83.0
+# E:\3rd_party\boost_1_83_0\lib64-msvc-14.3\cmake\Boost-1.83.0
 #==============================================================================
 #=== 2. 查找第三方依赖 =========================================================
 #==============================================================================
@@ -77,29 +78,23 @@ find_package(Threads REQUIRED)
 
 #=== 2.4 Boost（序列化等） ===
 message(STATUS "配置 Boost 库...")
-# 设置 Boost 根目录
-set(Boost_ROOT "E:/3rd_party/boost_1_83_0")
-
-
-# 手动指定库文件
-set(BOOST_LIBRARY_DIR "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3")
-# 手动设置库文件路径
-set(BOOST_SERIALIZATION_LIB 
-    "${BOOST_LIBRARY_DIR}/boost_serialization-vc143-mt-x64-1_83.lib"
-)
-# 验证库文件存在
-if(EXISTS "${BOOST_SERIALIZATION_LIB}")
-    message(STATUS "✓ Boost 序列化库: ${BOOST_SERIALIZATION_LIB}")
-    set(Boost_SERIALIZATION_LIBRARY "${BOOST_SERIALIZATION_LIB}")
-    set(Boost_SERIALIZATION_FOUND TRUE)
+find_package(Boost REQUIRED COMPONENTS serialization)
+if(Boost_FOUND)
+    message(STATUS "✓ Boost version: ${Boost_VERSION}")
 else()
-    message(FATAL_ERROR "✗ Boost 序列化库未找到: ${BOOST_SERIALIZATION_LIB}")
+    # 备用方案：手动配置
+    set(BOOST_LIBRARY_DIR "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3")
+    set(BOOST_SERIALIZATION_LIB "${BOOST_LIBRARY_DIR}/libboost_serialization-vc143-mt-s-x64-1_83.lib")
+    
+    if(EXISTS "${BOOST_SERIALIZATION_LIB}")
+        set(Boost_SERIALIZATION_LIBRARY "${BOOST_SERIALIZATION_LIB}")
+        set(Boost_SERIALIZATION_FOUND TRUE)
+        set(Boost_INCLUDE_DIRS "E:/3rd_party/boost_1_83_0")
+        message(STATUS "✓ Boost 手动配置成功")
+    else()
+        message(FATAL_ERROR "✗ Boost 库未找到")
+    endif()
 endif()
-
-set(Boost_FOUND TRUE)
-set(Boost_INCLUDE_DIRS "E:/3rd_party/boost_1_83_0")
-set(Boost_LIBRARIES "${Boost_SERIALIZATION_LIBRARY}")
-message(STATUS "✓ Boost 配置完成")
 
 #=== 2.5 GLEW ===
 find_package(GLEW QUIET)
