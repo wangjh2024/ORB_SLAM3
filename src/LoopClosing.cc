@@ -1027,7 +1027,7 @@ namespace ORB_SLAM3
 			unique_lock<mutex> lock(mMutexGBA);
 			mbStopGBA = true;
 
-			mnFullBAIdx++;
+			mnFullBAIdx = true;  // 或者使用其他逻辑
 
 			if (mpThreadGBA)
 			{
@@ -1274,7 +1274,7 @@ namespace ORB_SLAM3
 			unique_lock<mutex> lock(mMutexGBA);
 			mbStopGBA = true;
 
-			mnFullBAIdx++;
+			mnFullBAIdx = true;  // 或者使用其他逻辑
 
 			if (mpThreadGBA)
 			{
@@ -1972,7 +1972,7 @@ namespace ORB_SLAM3
 			unique_lock<mutex> lock(mMutexGBA);
 			mbStopGBA = true;
 
-			mnFullBAIdx++;
+			mnFullBAIdx = true;  // 或者使用其他逻辑
 
 			if (mpThreadGBA)
 			{

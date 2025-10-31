@@ -55,6 +55,7 @@
 #include "Thirdparty/DBoW2/DUtils/Random.h"
 #include <algorithm>
 
+#include <opencv2/calib3d/calib3d.hpp>
 using namespace std;
 
 namespace ORB_SLAM3
@@ -369,6 +370,7 @@ namespace ORB_SLAM3
 		number_of_correspondences++;
 	}
 
+
 	void PnPsolver::choose_control_points(void)
 	{
 		// Take C0 as the reference points centroid:
@@ -380,62 +382,50 @@ namespace ORB_SLAM3
 		for (int j = 0; j < 3; j++)
 			cws[0][j] /= number_of_correspondences;
 
-
 		// Take C1, C2, and C3 from PCA on the reference points:
-		//cv::Mat PW0 = cvCreateMat(number_of_correspondences, 3, CV_64F);
-		cv::Mat PW0(3, number_of_correspondences, CV_64F);
-
-		double pw0tpw0[3 * 3], dc[3], uct[3 * 3];
-		CvMat PW0tPW0 = cvMat(3, 3, CV_64F, pw0tpw0);
-		CvMat DC = cvMat(3, 1, CV_64F, dc);
-		CvMat UCt = cvMat(3, 3, CV_64F, uct);
+		cv::Mat PW0(number_of_correspondences, 3, CV_64F);
 
 		for (int i = 0; i < number_of_correspondences; i++)
 			for (int j = 0; j < 3; j++)
-				PW0->data.db[3 * i + j] = pws[3 * i + j] - cws[0][j];
+				PW0.at<double>(i, j) = pws[3 * i + j] - cws[0][j];
 
-		cvMulTransposed(PW0, &PW0tPW0, 1);
-		cv::SVD::compute(&PW0tPW0, &DC, &UCt, 0, CV_SVD_MODIFY_A | CV_SVD_U_T);
-
-		cvReleaseMat(&PW0);
+		cv::Mat PW0tPW0 = PW0.t() * PW0;
+		cv::Mat eigenvalues, eigenvectors;
+		cv::eigen(PW0tPW0, eigenvalues, eigenvectors);
 
 		for (int i = 1; i < 4; i++) {
-			double k = sqrt(dc[i - 1] / number_of_correspondences);
+			double k = sqrt(eigenvalues.at<double>(i - 1) / number_of_correspondences);
 			for (int j = 0; j < 3; j++)
-				cws[i][j] = cws[0][j] + k * uct[3 * (i - 1) + j];
+				cws[i][j] = cws[0][j] + k * eigenvectors.at<double>(i - 1, j);
 		}
 	}
 
+	// 替换 compute_barycentric_coordinates 函数
 	void PnPsolver::compute_barycentric_coordinates(void)
 	{
-		double cc[3 * 3], cc_inv[3 * 3];
-		CvMat CC = cvMat(3, 3, CV_64F, cc);
-		CvMat CC_inv = cvMat(3, 3, CV_64F, cc_inv);
-
+		cv::Mat CC(3, 3, CV_64F);
 		for (int i = 0; i < 3; i++)
 			for (int j = 1; j < 4; j++)
-				cc[3 * i + j - 1] = cws[j][i] - cws[0][i];
+				CC.at<double>(i, j - 1) = cws[j][i] - cws[0][i];
 
-		cvInvert(&CC, &CC_inv, CV_SVD);
-		double* ci = cc_inv;
+		cv::Mat CC_inv = CC.inv(cv::DECOMP_SVD);
+
 		for (int i = 0; i < number_of_correspondences; i++) {
 			double* pi = pws + 3 * i;
 			double* a = alphas + 4 * i;
 
 			for (int j = 0; j < 3; j++)
-				a[1 + j] =
-				ci[3 * j] * (pi[0] - cws[0][0]) +
-				ci[3 * j + 1] * (pi[1] - cws[0][1]) +
-				ci[3 * j + 2] * (pi[2] - cws[0][2]);
+				a[1 + j] = CC_inv.at<double>(j, 0) * (pi[0] - cws[0][0]) +
+				CC_inv.at<double>(j, 1) * (pi[1] - cws[0][1]) +
+				CC_inv.at<double>(j, 2) * (pi[2] - cws[0][2]);
 			a[0] = 1.0f - a[1] - a[2] - a[3];
 		}
 	}
 
-	void PnPsolver::fill_M(CvMat* M,
-		const int row, const double* as, const double u, const double v)
+	void PnPsolver::fill_M(cv::Mat& M, const int row, const double* as, const double u, const double v)
 	{
-		double* M1 = M->data.db + row * 12;
-		double* M2 = M1 + 12;
+		double* M1 = M.ptr<double>(row);
+		double* M2 = M.ptr<double>(row + 1);
 
 		for (int i = 0; i < 4; i++) {
 			M1[3 * i] = as[i] * fu;
@@ -477,42 +467,36 @@ namespace ORB_SLAM3
 		choose_control_points();
 		compute_barycentric_coordinates();
 
-		//CvMat* M = cvCreateMat(2 * number_of_correspondences, 12, CV_64F);
-		cv::Mat PW0(12, 2 * number_of_correspondences, CV_64F);
+		cv::Mat M(2 * number_of_correspondences, 12, CV_64F);
 
 		for (int i = 0; i < number_of_correspondences; i++)
 			fill_M(M, 2 * i, alphas + 4 * i, us[2 * i], us[2 * i + 1]);
 
-		double mtm[12 * 12], d[12], ut[12 * 12];
-		CvMat MtM = cvMat(12, 12, CV_64F, mtm);
-		CvMat D = cvMat(12, 1, CV_64F, d);
-		CvMat Ut = cvMat(12, 12, CV_64F, ut);
+		cv::Mat MtM = M.t() * M;
+		cv::Mat eigenvalues, eigenvectors;
+		cv::eigen(MtM, eigenvalues, eigenvectors);
 
-		cvMulTransposed(M, &MtM, 1);
-		cv::SVD::compute(&MtM, &D, &Ut, 0, CV_SVD_MODIFY_A | CV_SVD_U_T);
-		cvReleaseMat(&M);
+		cv::Mat Ut = eigenvectors.t();
 
 		double l_6x10[6 * 10], rho[6];
-		CvMat L_6x10 = cvMat(6, 10, CV_64F, l_6x10);
-		CvMat Rho = cvMat(6, 1, CV_64F, rho);
-
-		compute_L_6x10(ut, l_6x10);
+		compute_L_6x10(Ut.ptr<double>(0), l_6x10);
 		compute_rho(rho);
 
 		double Betas[4][4], rep_errors[4];
 		double Rs[4][3][3], ts[4][3];
 
-		find_betas_approx_1(&L_6x10, &Rho, Betas[1]);
-		gauss_newton(&L_6x10, &Rho, Betas[1]);
-		rep_errors[1] = compute_R_and_t(ut, Betas[1], Rs[1], ts[1]);
+		// 直接传递数组指针而不是 cv::Mat 对象
+		find_betas_approx_1(l_6x10, rho, Betas[1]);
+		gauss_newton(l_6x10, rho, Betas[1]);
+		rep_errors[1] = compute_R_and_t(Ut.ptr<double>(0), Betas[1], Rs[1], ts[1]);
 
-		find_betas_approx_2(&L_6x10, &Rho, Betas[2]);
-		gauss_newton(&L_6x10, &Rho, Betas[2]);
-		rep_errors[2] = compute_R_and_t(ut, Betas[2], Rs[2], ts[2]);
+		find_betas_approx_2(l_6x10, rho, Betas[2]);
+		gauss_newton(l_6x10, rho, Betas[2]);
+		rep_errors[2] = compute_R_and_t(Ut.ptr<double>(0), Betas[2], Rs[2], ts[2]);
 
-		find_betas_approx_3(&L_6x10, &Rho, Betas[3]);
-		gauss_newton(&L_6x10, &Rho, Betas[3]);
-		rep_errors[3] = compute_R_and_t(ut, Betas[3], Rs[3], ts[3]);
+		find_betas_approx_3(l_6x10, rho, Betas[3]);
+		gauss_newton(l_6x10, rho, Betas[3]);
+		rep_errors[3] = compute_R_and_t(Ut.ptr<double>(0), Betas[3], Rs[3], ts[3]);
 
 		int N = 1;
 		if (rep_errors[2] < rep_errors[1]) N = 2;
@@ -522,7 +506,6 @@ namespace ORB_SLAM3
 
 		return rep_errors[N];
 	}
-
 	void PnPsolver::copy_R_and_t(const double R_src[3][3], const double t_src[3],
 		double R_dst[3][3], double t_dst[3])
 	{
@@ -568,7 +551,6 @@ namespace ORB_SLAM3
 	void PnPsolver::estimate_R_and_t(double R[3][3], double t[3])
 	{
 		double pc0[3], pw0[3];
-
 		pc0[0] = pc0[1] = pc0[2] = 0.0;
 		pw0[0] = pw0[1] = pw0[2] = 0.0;
 
@@ -586,32 +568,30 @@ namespace ORB_SLAM3
 			pw0[j] /= number_of_correspondences;
 		}
 
-		double abt[3 * 3], abt_d[3], abt_u[3 * 3], abt_v[3 * 3];
-		CvMat ABt = cvMat(3, 3, CV_64F, abt);
-		CvMat ABt_D = cvMat(3, 1, CV_64F, abt_d);
-		CvMat ABt_U = cvMat(3, 3, CV_64F, abt_u);
-		CvMat ABt_V = cvMat(3, 3, CV_64F, abt_v);
+		cv::Mat ABt(3, 3, CV_64F);
+		ABt.setTo(0);
 
-		cvSetZero(&ABt);
 		for (int i = 0; i < number_of_correspondences; i++) {
 			double* pc = pcs + 3 * i;
 			double* pw = pws + 3 * i;
 
 			for (int j = 0; j < 3; j++) {
-				abt[3 * j] += (pc[j] - pc0[j]) * (pw[0] - pw0[0]);
-				abt[3 * j + 1] += (pc[j] - pc0[j]) * (pw[1] - pw0[1]);
-				abt[3 * j + 2] += (pc[j] - pc0[j]) * (pw[2] - pw0[2]);
+				ABt.at<double>(j, 0) += (pc[j] - pc0[j]) * (pw[0] - pw0[0]);
+				ABt.at<double>(j, 1) += (pc[j] - pc0[j]) * (pw[1] - pw0[1]);
+				ABt.at<double>(j, 2) += (pc[j] - pc0[j]) * (pw[2] - pw0[2]);
 			}
 		}
 
-		cv::SVD::compute(&ABt, &ABt_D, &ABt_U, &ABt_V, CV_SVD_MODIFY_A);
+		cv::Mat ABt_D, ABt_U, ABt_Vt;
+		cv::SVD::compute(ABt, ABt_D, ABt_U, ABt_Vt);
 
 		for (int i = 0; i < 3; i++)
 			for (int j = 0; j < 3; j++)
-				R[i][j] = dot(abt_u + 3 * i, abt_v + 3 * j);
+				R[i][j] = ABt_U.at<double>(i, 0) * ABt_Vt.at<double>(j, 0) +
+				ABt_U.at<double>(i, 1) * ABt_Vt.at<double>(j, 1) +
+				ABt_U.at<double>(i, 2) * ABt_Vt.at<double>(j, 2);
 
-		const double det =
-			R[0][0] * R[1][1] * R[2][2] + R[0][1] * R[1][2] * R[2][0] + R[0][2] * R[1][0] * R[2][1] -
+		const double det = R[0][0] * R[1][1] * R[2][2] + R[0][1] * R[1][2] * R[2][0] + R[0][2] * R[1][0] * R[2][1] -
 			R[0][2] * R[1][1] * R[2][0] - R[0][1] * R[1][0] * R[2][2] - R[0][0] * R[1][2] * R[2][1];
 
 		if (det < 0) {
@@ -620,11 +600,10 @@ namespace ORB_SLAM3
 			R[2][2] = -R[2][2];
 		}
 
-		t[0] = pc0[0] - dot(R[0], pw0);
-		t[1] = pc0[1] - dot(R[1], pw0);
-		t[2] = pc0[2] - dot(R[2], pw0);
+		t[0] = pc0[0] - (R[0][0] * pw0[0] + R[0][1] * pw0[1] + R[0][2] * pw0[2]);
+		t[1] = pc0[1] - (R[1][0] * pw0[0] + R[1][1] * pw0[1] + R[1][2] * pw0[2]);
+		t[2] = pc0[2] - (R[2][0] * pw0[0] + R[2][1] * pw0[1] + R[2][2] * pw0[2]);
 	}
-
 	void PnPsolver::print_pose(const double R[3][3], const double t[3])
 	{
 		cout << R[0][0] << " " << R[0][1] << " " << R[0][2] << " " << t[0] << endl;
@@ -663,21 +642,24 @@ namespace ORB_SLAM3
 	// betas10        = [B11 B12 B22 B13 B23 B33 B14 B24 B34 B44]
 	// betas_approx_1 = [B11 B12     B13         B14]
 
-	void PnPsolver::find_betas_approx_1(const CvMat* L_6x10, const CvMat* Rho,
-		double* betas)
+	void PnPsolver::find_betas_approx_1(const double* l_6x10, const double* rho, double* betas)
 	{
-		double l_6x4[6 * 4], b4[4];
-		CvMat L_6x4 = cvMat(6, 4, CV_64F, l_6x4);
-		CvMat B4 = cvMat(4, 1, CV_64F, b4);
+		cv::Mat L_6x4(6, 4, CV_64F);
+		cv::Mat B4(4, 1, CV_64F);
+		cv::Mat Rho(6, 1, CV_64F, (void*)rho); // 将数组转换为 Mat
 
+		// 使用现代 OpenCV 方式访问数据
 		for (int i = 0; i < 6; i++) {
-			cvmSet(&L_6x4, i, 0, cvmGet(L_6x10, i, 0));
-			cvmSet(&L_6x4, i, 1, cvmGet(L_6x10, i, 1));
-			cvmSet(&L_6x4, i, 2, cvmGet(L_6x10, i, 3));
-			cvmSet(&L_6x4, i, 3, cvmGet(L_6x10, i, 6));
+			L_6x4.at<double>(i, 0) = l_6x10[i * 10 + 0];
+			L_6x4.at<double>(i, 1) = l_6x10[i * 10 + 1];
+			L_6x4.at<double>(i, 2) = l_6x10[i * 10 + 3];
+			L_6x4.at<double>(i, 3) = l_6x10[i * 10 + 6];
 		}
 
-		cvSolve(&L_6x4, Rho, &B4, CV_SVD);
+		cv::solve(L_6x4, Rho, B4, cv::DECOMP_SVD);
+
+		double b4[4];
+		for (int i = 0; i < 4; i++) b4[i] = B4.at<double>(i, 0);
 
 		if (b4[0] < 0) {
 			betas[0] = sqrt(-b4[0]);
@@ -692,16 +674,14 @@ namespace ORB_SLAM3
 			betas[3] = b4[3] / betas[0];
 		}
 	}
-
 	// betas10        = [B11 B12 B22 B13 B23 B33 B14 B24 B34 B44]
 	// betas_approx_2 = [B11 B12 B22                            ]
 
-	void PnPsolver::find_betas_approx_2(const CvMat* L_6x10, const CvMat* Rho,
-		double* betas)
+	void PnPsolver::find_betas_approx_2(const cv::Mat L_6x10, const cv::Mat Rho, cv::Mat betas)
 	{
 		double l_6x3[6 * 3], b3[3];
-		CvMat L_6x3 = cvMat(6, 3, CV_64F, l_6x3);
-		CvMat B3 = cvMat(3, 1, CV_64F, b3);
+		cv::Mat L_6x3 = cv::Mat(6, 3, CV_64F, l_6x3);
+		cv::Mat B3 = cv::Mat(3, 1, CV_64F, b3);
 
 		for (int i = 0; i < 6; i++) {
 			cvmSet(&L_6x3, i, 0, cvmGet(L_6x10, i, 0));
@@ -729,12 +709,11 @@ namespace ORB_SLAM3
 	// betas10        = [B11 B12 B22 B13 B23 B33 B14 B24 B34 B44]
 	// betas_approx_3 = [B11 B12 B22 B13 B23                    ]
 
-	void PnPsolver::find_betas_approx_3(const CvMat* L_6x10, const CvMat* Rho,
-		double* betas)
+	void PnPsolver::find_betas_approx_3(const cv::Mat L_6x10, const cv::Mat Rho, cv::Mat betas)
 	{
 		double l_6x5[6 * 5], b5[5];
-		CvMat L_6x5 = cvMat(6, 5, CV_64F, l_6x5);
-		CvMat B5 = cvMat(5, 1, CV_64F, b5);
+		cv::Mat L_6x5 = cv::Mat(6, 5, CV_64F, l_6x5);
+		cv::Mat B5 = cv::Mat(5, 1, CV_64F, b5);
 
 		for (int i = 0; i < 6; i++) {
 			cvmSet(&L_6x5, i, 0, cvmGet(L_6x10, i, 0));
@@ -812,54 +791,49 @@ namespace ORB_SLAM3
 	}
 
 	void PnPsolver::compute_A_and_b_gauss_newton(const double* l_6x10, const double* rho,
-		double betas[4], CvMat* A, CvMat* b)
+		double betas[4], cv::Mat& A, cv::Mat& b)
 	{
 		for (int i = 0; i < 6; i++) {
 			const double* rowL = l_6x10 + i * 10;
-			double* rowA = A->data.db + i * 4;
 
-			rowA[0] = 2 * rowL[0] * betas[0] + rowL[1] * betas[1] + rowL[3] * betas[2] + rowL[6] * betas[3];
-			rowA[1] = rowL[1] * betas[0] + 2 * rowL[2] * betas[1] + rowL[4] * betas[2] + rowL[7] * betas[3];
-			rowA[2] = rowL[3] * betas[0] + rowL[4] * betas[1] + 2 * rowL[5] * betas[2] + rowL[8] * betas[3];
-			rowA[3] = rowL[6] * betas[0] + rowL[7] * betas[1] + rowL[8] * betas[2] + 2 * rowL[9] * betas[3];
+			A.at<double>(i, 0) = 2 * rowL[0] * betas[0] + rowL[1] * betas[1] + rowL[3] * betas[2] + rowL[6] * betas[3];
+			A.at<double>(i, 1) = rowL[1] * betas[0] + 2 * rowL[2] * betas[1] + rowL[4] * betas[2] + rowL[7] * betas[3];
+			A.at<double>(i, 2) = rowL[3] * betas[0] + rowL[4] * betas[1] + 2 * rowL[5] * betas[2] + rowL[8] * betas[3];
+			A.at<double>(i, 3) = rowL[6] * betas[0] + rowL[7] * betas[1] + rowL[8] * betas[2] + 2 * rowL[9] * betas[3];
 
-			cvmSet(b, i, 0, rho[i] -
-				(
-					rowL[0] * betas[0] * betas[0] +
-					rowL[1] * betas[0] * betas[1] +
-					rowL[2] * betas[1] * betas[1] +
-					rowL[3] * betas[0] * betas[2] +
-					rowL[4] * betas[1] * betas[2] +
-					rowL[5] * betas[2] * betas[2] +
-					rowL[6] * betas[0] * betas[3] +
-					rowL[7] * betas[1] * betas[3] +
-					rowL[8] * betas[2] * betas[3] +
-					rowL[9] * betas[3] * betas[3]
-					));
+			double residual = rho[i] - (
+				rowL[0] * betas[0] * betas[0] +
+				rowL[1] * betas[0] * betas[1] +
+				rowL[2] * betas[1] * betas[1] +
+				rowL[3] * betas[0] * betas[2] +
+				rowL[4] * betas[1] * betas[2] +
+				rowL[5] * betas[2] * betas[2] +
+				rowL[6] * betas[0] * betas[3] +
+				rowL[7] * betas[1] * betas[3] +
+				rowL[8] * betas[2] * betas[3] +
+				rowL[9] * betas[3] * betas[3]
+				);
+
+			b.at<double>(i, 0) = residual;
 		}
 	}
-
-	void PnPsolver::gauss_newton(const CvMat* L_6x10, const CvMat* Rho,
-		double betas[4])
+	void PnPsolver::gauss_newton(const double* l_6x10, const double* rho, double betas[4])
 	{
 		const int iterations_number = 5;
 
-		double a[6 * 4], b[6], x[4];
-		CvMat A = cvMat(6, 4, CV_64F, a);
-		CvMat B = cvMat(6, 1, CV_64F, b);
-		CvMat X = cvMat(4, 1, CV_64F, x);
+		cv::Mat A(6, 4, CV_64F);
+		cv::Mat B(6, 1, CV_64F);
+		cv::Mat X(4, 1, CV_64F);
 
 		for (int k = 0; k < iterations_number; k++) {
-			compute_A_and_b_gauss_newton(L_6x10->data.db, Rho->data.db,
-				betas, &A, &B);
-			qr_solve(&A, &B, &X);
+			compute_A_and_b_gauss_newton(l_6x10, rho, betas, A, B);
+			qr_solve(A, B, X);
 
 			for (int i = 0; i < 4; i++)
-				betas[i] += x[i];
+				betas[i] += X.at<double>(i, 0);
 		}
 	}
-
-	void PnPsolver::qr_solve(CvMat* A, CvMat* b, CvMat* X)
+	void PnPsolver::qr_solve(cv::Mat A, cv::Mat b, cv::Mat X)
 	{
 		static int max_nr = 0;
 		static double* A1, * A2;
