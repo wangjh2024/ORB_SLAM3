@@ -80,23 +80,16 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 #==============================================================================
 # 说明：OpenCV/Eigen/Pangolin 若已正确安装到注册的 CMake 路径，可不手动设置 *_DIR。
 set(OpenCV_DIR           "E:/3rd_party/opencv/build/x64/vc16/lib")
-# set(OpenCV_DIR           "E:/3rd_party/opencv/build/")
-set(EIGEN3_INCLUDE_DIR   "E:/3rd_party/eigen-3.4.0/include/eigen3")
+set(EIGEN3_INCLUDE_DIR   "E:/3rd_party/eigen-3.4.0-install/share/eigen3/cmake")
 set(Pangolin_DIR         "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
 # set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0")
-set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0/lib/cmake/Boost-1.83.0")
-
-# 若 Pangolin 是以 GLEW 构建的，下面的 GLEW_ROOT 可用于 FindGLEW（如需要）
+# set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0/lib/cmake/Boost-1.83.0")
 set(GLEW_ROOT            "E:/3rd_party/glew-2.2.0")
 
 #==============================================================================
 #=== 2. 查找第三方依赖（顺序很重要：先 Threads，后 Pangolin） ==================
 #==============================================================================
-
 #=== 2.1 OpenCV（>=4） ===
-# find_package(OpenCV 4 REQUIRED)
-# set(OpenCV_ROOT "D:/CODE-STUDY/_installed/opencv-4.x/x64/vc17/lib")
-message("OpenCV_ROOT is " ${OpenCV_ROOT})
 find_package(OpenCV REQUIRED)
 if(OpenCV_FOUND)
   message(STATUS "OpenCV version: ${OpenCV_VERSION}")
@@ -105,96 +98,66 @@ else()
   message(FATAL_ERROR "OpenCV not found.")
 endif()
 
+#=== 2.2 Eigen3（手动配置） ===
+message(STATUS "配置 Eigen3...")
+set(EIGEN3_INCLUDE_DIR   "E:/3rd_party/eigen-3.4.0-install/share/eigen3/cmake")
+
+find_package(Eigen3 REQUIRED)
 
 
-
-#=== 2.2 Eigen3（>=3.4.0） ===
-find_package(Eigen3 3.4.0 REQUIRED)
-# Compat: 保留旧式 include 路径，亦可直接用 Eigen3::Eigen 目标
-if(EIGEN3_INCLUDE_DIR)
-  message(STATUS "Eigen3 include (manual): ${EIGEN3_INCLUDE_DIR}")
-endif()
+message(STATUS "✓ Eigen3 配置完成")
 
 #=== 2.3 线程库（必须在 Pangolin 之前，以提供 Threads::Threads 目标） ===
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
-
 #=== 2.4 Boost（序列化等） ===
 message(STATUS "配置 Boost 库...")
-
 # 设置 Boost 根目录
-set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
 set(Boost_ROOT "E:/3rd_party/boost_1_83_0")
-
-# 首先尝试自动查找
-find_package(Boost QUIET COMPONENTS serialization)
-
-if(NOT Boost_FOUND)
-    # 如果自动查找失败，手动配置
-    message(STATUS "自动查找失败，使用手动配置...")
-    
-    # 手动设置包含目录
-    set(BOOST_INCLUDE_DIR "E:/3rd_party/boost_1_83_0")
-    set(Boost_INCLUDE_DIRS "${BOOST_INCLUDE_DIR}")
-    
-    # 验证头文件存在
-    if(EXISTS "${BOOST_INCLUDE_DIR}/boost/serialization/serialization.hpp")
-        message(STATUS "✓ Boost 头文件目录: ${BOOST_INCLUDE_DIR}")
-        
-        # 手动查找库文件
-        set(BOOST_LIB_PATHS
-            "${BOOST_ROOT}/lib64-msvc-14.3"
-            "${BOOST_ROOT}/stage/lib"
-            "${BOOST_ROOT}/lib"
-        )
-        
-        find_library(Boost_SERIALIZATION_LIBRARY
-            NAMES 
-                boost_serialization
-                boost_serialization-vc143-mt-x64-1_83
-                boost_serialization-vc143-mt-x64-1_83.lib
-                libboost_serialization
-            PATHS ${BOOST_LIB_PATHS}
-            NO_DEFAULT_PATH
-        )
-        
-        if(Boost_SERIALIZATION_LIBRARY)
-            message(STATUS "✓ 找到 Boost 序列化库: ${Boost_SERIALIZATION_LIBRARY}")
-            set(Boost_SERIALIZATION_FOUND TRUE)
-            set(Boost_LIBRARIES "${Boost_SERIALIZATION_LIBRARY}")
-        else()
-            message(STATUS "⚠ 未找到 Boost 序列化库，使用仅头文件模式")
-            set(Boost_SERIALIZATION_FOUND FALSE)
-            set(Boost_LIBRARIES "")
-        endif()
-        
-        set(Boost_FOUND TRUE)
-        set(Boost_VERSION 1.83.0)
-    else()
-        message(FATAL_ERROR "✗ Boost 头文件未找到: ${BOOST_INCLUDE_DIR}/boost/serialization/serialization.hpp")
-    endif()
+# 强制使用动态库，不使用静态库
+set(Boost_USE_STATIC_LIBS OFF)        # 使用动态库
+set(Boost_USE_STATIC_RUNTIME OFF)    # 不使用静态运行时
+set(Boost_USE_MULTITHREADED ON)      # 使用多线程
+# 禁用自动查找静态库
+set(Boost_NO_BOOST_CMAKE ON)
+# 手动指定库文件
+set(BOOST_LIBRARY_DIR "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3")
+# 手动设置库文件路径
+set(BOOST_SERIALIZATION_LIB 
+    "${BOOST_LIBRARY_DIR}/boost_serialization-vc143-mt-x64-1_83.lib"
+)
+# 验证库文件存在
+if(EXISTS "${BOOST_SERIALIZATION_LIB}")
+    message(STATUS "✓ Boost 序列化库: ${BOOST_SERIALIZATION_LIB}")
+    set(Boost_SERIALIZATION_LIBRARY "${BOOST_SERIALIZATION_LIB}")
+    set(Boost_SERIALIZATION_FOUND TRUE)
 else()
-    message(STATUS "✓ Boost 自动查找成功: ${Boost_VERSION}")
+    message(FATAL_ERROR "✗ Boost 序列化库未找到: ${BOOST_SERIALIZATION_LIB}")
 endif()
+set(Boost_FOUND TRUE)
+set(Boost_INCLUDE_DIRS "E:/3rd_party/boost_1_83_0")
+set(Boost_LIBRARIES "${Boost_SERIALIZATION_LIBRARY}")
+message(STATUS "✓ Boost 配置完成")
+
 #=== 2.5 OpenGL / GLEW（Pangolin 常见依赖，尽量查找，有则链接） ===
-find_package(OpenGL REQUIRED)
+# find_package(OpenGL REQUIRED)
 # GLEW 不一定总需要；QUIET 查找，找到就链。
 find_package(GLEW QUIET)
 
-#=== 2.6 Pangolin（依赖 Threads::Threads，故放在其后） ===
+#=== 2.6 Pangolin ===
+# 临时禁用依赖检查
+set(PANGOLIN_WITH_EIGEN OFF)
 find_package(Pangolin REQUIRED)
-# 兼容两种导出方式：现代目标 Pangolin::pangolin 或传统变量 ${Pangolin_LIBRARIES}
-set(PANGOLIN_TARGET "")
+# 手动设置 Pangolin 目标
 if(TARGET Pangolin::pangolin)
-  set(PANGOLIN_TARGET Pangolin::pangolin)
-  message(STATUS "Pangolin target: Pangolin::pangolin")
+    set(PANGOLIN_TARGET Pangolin::pangolin)
+    message(STATUS "✓ Pangolin target: Pangolin::pangolin")
 elseif(DEFINED Pangolin_LIBRARIES)
-  set(PANGOLIN_TARGET ${Pangolin_LIBRARIES})
-  message(STATUS "Pangolin libraries: ${Pangolin_LIBRARIES}")
+    set(PANGOLIN_TARGET ${Pangolin_LIBRARIES})
+    message(STATUS "✓ Pangolin libraries: ${Pangolin_LIBRARIES}")
 else()
-  message(FATAL_ERROR "Pangolin not providing a known target/variable.")
+    message(FATAL_ERROR "✗ Pangolin not providing a known target/variable.")
 endif()
-
 #==============================================================================
 #=== 3. 头文件包含路径 =========================================================
 #==============================================================================
@@ -305,7 +268,7 @@ target_link_libraries(${PROJECT_NAME}
     Threads::Threads
     Eigen3::Eigen
     ${BOOST_SERIALIZATION_TARGET}
-    OpenGL::GL
+    # OpenGL::GL
     $<$<TARGET_EXISTS:GLEW::GLEW>:GLEW::GLEW>
     ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/Release/DBoW2.lib
     ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release/g2o.lib
@@ -313,52 +276,6 @@ target_link_libraries(${PROJECT_NAME}
 #==============================================================================
 #=== 8. 示例程序（分别设置各自的输出目录） =====================================
 #==============================================================================
-
-#--- 8.1 RGB-D -----------------------------------------------------------------
-add_executable(rgbd_tum Examples/RGB-D/rgbd_tum.cc)
-target_include_directories(rgbd_tum PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(rgbd_tum PRIVATE ${PROJECT_NAME})
-set_target_properties(rgbd_tum PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/RGB-D"
-)
-
-#--- 8.2 Stereo ----------------------------------------------------------------
-add_executable(stereo_kitti Examples/Stereo/stereo_kitti.cc)
-target_include_directories(stereo_kitti PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(stereo_kitti PRIVATE ${PROJECT_NAME})
-set_target_properties(stereo_kitti PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo"
-)
-
-add_executable(stereo_euroc Examples/Stereo/stereo_euroc.cc)
-target_include_directories(stereo_euroc PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(stereo_euroc PRIVATE ${PROJECT_NAME})
-set_target_properties(stereo_euroc PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo"
-)
-
-add_executable(stereo_tum_vi Examples/Stereo/stereo_tum_vi.cc)
-target_include_directories(stereo_tum_vi PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(stereo_tum_vi PRIVATE ${PROJECT_NAME})
-set_target_properties(stereo_tum_vi PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo"
-)
 
 #--- 8.3 Monocular --------------------------------------------------------------
 add_executable(mono_tum Examples/Monocular/mono_tum.cc)
@@ -373,85 +290,13 @@ set_target_properties(mono_tum PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
 )
 
-add_executable(mono_kitti Examples/Monocular/mono_kitti.cc)
-target_include_directories(mono_kitti PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(mono_kitti PRIVATE ${PROJECT_NAME})
-set_target_properties(mono_kitti PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
-)
-
-add_executable(mono_euroc Examples/Monocular/mono_euroc.cc)
-target_include_directories(mono_euroc PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(mono_euroc PRIVATE ${PROJECT_NAME})
-set_target_properties(mono_euroc PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
-)
-
-add_executable(mono_tum_vi Examples/Monocular/mono_tum_vi.cc)
-target_include_directories(mono_tum_vi PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(mono_tum_vi PRIVATE ${PROJECT_NAME})
-set_target_properties(mono_tum_vi PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
-)
-
-#--- 8.4 Monocular-Inertial ----------------------------------------------------
-add_executable(mono_inertial_euroc Examples/Monocular-Inertial/mono_inertial_euroc.cc)
-target_include_directories(mono_inertial_euroc PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(mono_inertial_euroc PRIVATE ${PROJECT_NAME})
-set_target_properties(mono_inertial_euroc PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular-Inertial"
-)
-
-add_executable(mono_inertial_tum_vi Examples/Monocular-Inertial/mono_inertial_tum_vi.cc)
-target_include_directories(mono_inertial_tum_vi PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(mono_inertial_tum_vi PRIVATE ${PROJECT_NAME})
-set_target_properties(mono_inertial_tum_vi PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular-Inertial"
-)
-
-#--- 8.5 Stereo-Inertial -------------------------------------------------------
-add_executable(stereo_inertial_euroc Examples/Stereo-Inertial/stereo_inertial_euroc.cc)
-target_include_directories(stereo_inertial_euroc PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(stereo_inertial_euroc PRIVATE ${PROJECT_NAME})
-set_target_properties(stereo_inertial_euroc PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo-Inertial"
-)
-
-add_executable(stereo_inertial_tum_vi Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
-target_include_directories(stereo_inertial_tum_vi PRIVATE 
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${OpenCV_INCLUDE_DIRS}
-)
-target_link_libraries(stereo_inertial_tum_vi PRIVATE ${PROJECT_NAME})
-set_target_properties(stereo_inertial_tum_vi PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo-Inertial"
-)
-
-#==============================================================================
-
-
+# add_executable(mono_kitti Examples/Monocular/mono_kitti.cc)
+# target_include_directories(mono_kitti PRIVATE 
+#     ${PROJECT_SOURCE_DIR}
+#     ${PROJECT_SOURCE_DIR}/include
+#     ${OpenCV_INCLUDE_DIRS}
+# )
+# target_link_libraries(mono_kitti PRIVATE ${PROJECT_NAME})
+# set_target_properties(mono_kitti PROPERTIES
+#   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
+# )
