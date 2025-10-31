@@ -47,9 +47,11 @@ add_definitions(-DCOMPILEDWITHC11 -DORB_SLAM3_EXPORTS)
 set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
 set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin") 
 set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
-set(Boost_ROOT "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3/cmake/Boost-1.83.0")
-# E:\3rd_party\boost_1_83_0\stage\lib\cmake\Boost-1.83.0
-# E:\3rd_party\boost_1_83_0\lib64-msvc-14.3\cmake\Boost-1.83.0
+# set(Boost_ROOT "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3/cmake/Boost-1.83.0")
+# set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
+
+# E:/3rd_party/boost_1_83_0/stage/lib/cmake/Boost-1.83.0
+# E:/3rd_party/boost_1_83_0/lib64-msvc-14.3/cmake/Boost-1.83.0
 #==============================================================================
 #=== 2. 查找第三方依赖 =========================================================
 #==============================================================================
@@ -77,49 +79,23 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 #=== 2.4 Boost（序列化等） ===
+# 清除缓存变量（重要！）
+unset(BOOST_INCLUDE_DIR CACHE)
+unset(BOOST_LIBRARY_DIRS CACHE)
 message(STATUS "配置 Boost 库...")
-# 设置正确的 Boost 路径
-set(Boost_ROOT "E:/3rd_party/boost_1_83_0")
-set(BOOST_LIBRARY_DIR "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3")
 
-# 根据图片中的实际文件名配置
-set(BOOST_SERIALIZATION_LIB 
-    "${BOOST_LIBRARY_DIR}/libboost_serialization-vc143-mt-s-x64-1_83.lib"
-)
+set(Boost_ROOT "E:/3rd_party/00installed/boost_1_83_0_install/lib/cmake/Boost-1.83.0")
 
-# 验证库文件是否存在
-if(EXISTS "${BOOST_SERIALIZATION_LIB}")
-    message(STATUS "✓ Boost 序列化库找到: ${BOOST_SERIALIZATION_LIB}")
-    
-    # 手动配置 Boost
-    set(Boost_FOUND TRUE)
-    set(Boost_VERSION 1.83.0)
-    set(Boost_INCLUDE_DIRS "E:/3rd_party/boost_1_83_0")
-    set(Boost_LIBRARY_DIRS "${BOOST_LIBRARY_DIR}")
-    set(Boost_SERIALIZATION_LIBRARY "${BOOST_SERIALIZATION_LIB}")
-    set(Boost_SERIALIZATION_FOUND TRUE)
-    
-    # 创建导入目标（现代 CMake 方式）
-    add_library(Boost::serialization UNKNOWN IMPORTED)
-    set_target_properties(Boost::serialization PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}"
-        IMPORTED_LOCATION "${Boost_SERIALIZATION_LIBRARY}"
-    )
-    
-    message(STATUS "✓ Boost 1.83.0 手动配置成功")
-    message(STATUS "  Include: ${Boost_INCLUDE_DIRS}")
-    message(STATUS "  Library: ${Boost_SERIALIZATION_LIBRARY}")
-    
+message("Boost_ROOT is " ${Boost_ROOT})
+find_package(Boost REQUIRED COMPONENTS serialization)
+if(Boost_FOUND)
+  message(STATUS "Boost Found: ${Boost_VERSION}")
+  message(STATUS "Serialization: ${Boost_SERIALIZATION_LIBRARY}")
+  include_directories(${Boost_INCLUDE_DIRS})
 else()
-    message(FATAL_ERROR "
-✗ Boost 序列化库未找到！
-期望路径: ${BOOST_SERIALIZATION_LIB}
-请检查：
-1. 文件是否存在
-2. 文件名是否与图片中一致
-3. 路径是否正确
-    ")
+  message(FATAL_ERROR "Boost not found.")
 endif()
+
 
 #=== 2.5 GLEW ===
 find_package(GLEW QUIET)
@@ -248,7 +224,7 @@ target_link_libraries(${PROJECT_NAME}
     ${PANGOLIN_TARGET}
     Threads::Threads
     Eigen3::Eigen
-    ${BOOST_SERIALIZATION_TARGET}
+    ${Boost_SERIALIZATION_LIBRARY}
     # OpenGL::GL
     $<$<TARGET_EXISTS:GLEW::GLEW>:GLEW::GLEW>
     ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/Release/DBoW2.lib
