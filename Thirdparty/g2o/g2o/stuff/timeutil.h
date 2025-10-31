@@ -27,15 +27,11 @@
 #ifndef G2O_TIMEUTIL_H
 #define G2O_TIMEUTIL_H
 
-#ifdef _WIN32
-#include <winsock2.h>   // timeval 定义在这里，注意顺序要先于 windows.h
-#include <windows.h>
-
-
+#ifdef _WINDOWS
+#include <time.h>
 #else
-  #include <sys/time.h>
+#include <sys/time.h>
 #endif
-
 
 #include <string>
 
