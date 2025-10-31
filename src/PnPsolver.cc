@@ -674,22 +674,24 @@ namespace ORB_SLAM3
 			betas[3] = b4[3] / betas[0];
 		}
 	}
-	// betas10        = [B11 B12 B22 B13 B23 B33 B14 B24 B34 B44]
-	// betas_approx_2 = [B11 B12 B22                            ]
-
-	void PnPsolver::find_betas_approx_2(const cv::Mat L_6x10, const cv::Mat Rho, cv::Mat betas)
+	void PnPsolver::find_betas_approx_2(const double* l_6x10, const double* rho, double* betas)
 	{
-		double l_6x3[6 * 3], b3[3];
-		cv::Mat L_6x3 = cv::Mat(6, 3, CV_64F, l_6x3);
-		cv::Mat B3 = cv::Mat(3, 1, CV_64F, b3);
+		cv::Mat L_6x3(6, 3, CV_64F);
+		cv::Mat Rho_mat(6, 1, CV_64F);
 
 		for (int i = 0; i < 6; i++) {
-			cvmSet(&L_6x3, i, 0, cvmGet(L_6x10, i, 0));
-			cvmSet(&L_6x3, i, 1, cvmGet(L_6x10, i, 1));
-			cvmSet(&L_6x3, i, 2, cvmGet(L_6x10, i, 2));
+			L_6x3.at<double>(i, 0) = l_6x10[i * 10 + 0];
+			L_6x3.at<double>(i, 1) = l_6x10[i * 10 + 1];
+			L_6x3.at<double>(i, 2) = l_6x10[i * 10 + 2];
+			Rho_mat.at<double>(i, 0) = rho[i];
 		}
 
-		cvSolve(&L_6x3, Rho, &B3, CV_SVD);
+		cv::Mat B3;
+		cv::solve(L_6x3, Rho_mat, B3, cv::DECOMP_SVD);
+
+		double b3[3];
+		for (int i = 0; i < 3; i++)
+			b3[i] = B3.at<double>(i, 0);
 
 		if (b3[0] < 0) {
 			betas[0] = sqrt(-b3[0]);
@@ -701,29 +703,30 @@ namespace ORB_SLAM3
 		}
 
 		if (b3[1] < 0) betas[0] = -betas[0];
-
 		betas[2] = 0.0;
 		betas[3] = 0.0;
 	}
 
-	// betas10        = [B11 B12 B22 B13 B23 B33 B14 B24 B34 B44]
-	// betas_approx_3 = [B11 B12 B22 B13 B23                    ]
-
-	void PnPsolver::find_betas_approx_3(const cv::Mat L_6x10, const cv::Mat Rho, cv::Mat betas)
+	void PnPsolver::find_betas_approx_3(const double* l_6x10, const double* rho, double* betas)
 	{
-		double l_6x5[6 * 5], b5[5];
-		cv::Mat L_6x5 = cv::Mat(6, 5, CV_64F, l_6x5);
-		cv::Mat B5 = cv::Mat(5, 1, CV_64F, b5);
+		cv::Mat L_6x5(6, 5, CV_64F);
+		cv::Mat Rho_mat(6, 1, CV_64F);
 
 		for (int i = 0; i < 6; i++) {
-			cvmSet(&L_6x5, i, 0, cvmGet(L_6x10, i, 0));
-			cvmSet(&L_6x5, i, 1, cvmGet(L_6x10, i, 1));
-			cvmSet(&L_6x5, i, 2, cvmGet(L_6x10, i, 2));
-			cvmSet(&L_6x5, i, 3, cvmGet(L_6x10, i, 3));
-			cvmSet(&L_6x5, i, 4, cvmGet(L_6x10, i, 4));
+			L_6x5.at<double>(i, 0) = l_6x10[i * 10 + 0];
+			L_6x5.at<double>(i, 1) = l_6x10[i * 10 + 1];
+			L_6x5.at<double>(i, 2) = l_6x10[i * 10 + 2];
+			L_6x5.at<double>(i, 3) = l_6x10[i * 10 + 3];
+			L_6x5.at<double>(i, 4) = l_6x10[i * 10 + 4];
+			Rho_mat.at<double>(i, 0) = rho[i];
 		}
 
-		cvSolve(&L_6x5, Rho, &B5, CV_SVD);
+		cv::Mat B5;
+		cv::solve(L_6x5, Rho_mat, B5, cv::DECOMP_SVD);
+
+		double b5[5];
+		for (int i = 0; i < 5; i++)
+			b5[i] = B5.at<double>(i, 0);
 
 		if (b5[0] < 0) {
 			betas[0] = sqrt(-b5[0]);
@@ -733,11 +736,11 @@ namespace ORB_SLAM3
 			betas[0] = sqrt(b5[0]);
 			betas[1] = (b5[2] > 0) ? sqrt(b5[2]) : 0.0;
 		}
+
 		if (b5[1] < 0) betas[0] = -betas[0];
 		betas[2] = b5[3] / betas[0];
 		betas[3] = 0.0;
 	}
-
 	void PnPsolver::compute_L_6x10(const double* ut, double* l_6x10)
 	{
 		const double* v[4];
@@ -833,97 +836,10 @@ namespace ORB_SLAM3
 				betas[i] += X.at<double>(i, 0);
 		}
 	}
-	void PnPsolver::qr_solve(cv::Mat A, cv::Mat b, cv::Mat X)
+	void PnPsolver::qr_solve(cv::Mat& A, cv::Mat& b, cv::Mat& X)
 	{
-		static int max_nr = 0;
-		static double* A1, * A2;
-
-		const int nr = A->rows;
-		const int nc = A->cols;
-
-		if (max_nr != 0 && max_nr < nr) {
-			delete[] A1;
-			delete[] A2;
-		}
-		if (max_nr < nr) {
-			max_nr = nr;
-			A1 = new double[nr];
-			A2 = new double[nr];
-		}
-
-		double* pA = A->data.db, * ppAkk = pA;
-		for (int k = 0; k < nc; k++) {
-			double* ppAik = ppAkk, eta = fabs(*ppAik);
-			for (int i = k + 1; i < nr; i++) {
-				double elt = fabs(*ppAik);
-				if (eta < elt) eta = elt;
-				ppAik += nc;
-			}
-
-			if (eta == 0) {
-				A1[k] = A2[k] = 0.0;
-				cerr << "God damnit, A is singular, this shouldn't happen." << endl;
-				return;
-			}
-			else {
-				double* ppAik = ppAkk, sum = 0.0, inv_eta = 1. / eta;
-				for (int i = k; i < nr; i++) {
-					*ppAik *= inv_eta;
-					sum += *ppAik * *ppAik;
-					ppAik += nc;
-				}
-				double sigma = sqrt(sum);
-				if (*ppAkk < 0)
-					sigma = -sigma;
-				*ppAkk += sigma;
-				A1[k] = sigma * *ppAkk;
-				A2[k] = -eta * sigma;
-				for (int j = k + 1; j < nc; j++) {
-					double* ppAik = ppAkk, sum = 0;
-					for (int i = k; i < nr; i++) {
-						sum += *ppAik * ppAik[j - k];
-						ppAik += nc;
-					}
-					double tau = sum / A1[k];
-					ppAik = ppAkk;
-					for (int i = k; i < nr; i++) {
-						ppAik[j - k] -= tau * *ppAik;
-						ppAik += nc;
-					}
-				}
-			}
-			ppAkk += nc + 1;
-		}
-
-		// b <- Qt b
-		double* ppAjj = pA, * pb = b->data.db;
-		for (int j = 0; j < nc; j++) {
-			double* ppAij = ppAjj, tau = 0;
-			for (int i = j; i < nr; i++) {
-				tau += *ppAij * pb[i];
-				ppAij += nc;
-			}
-			tau /= A1[j];
-			ppAij = ppAjj;
-			for (int i = j; i < nr; i++) {
-				pb[i] -= tau * *ppAij;
-				ppAij += nc;
-			}
-			ppAjj += nc + 1;
-		}
-
-		// X = R-1 b
-		double* pX = X->data.db;
-		pX[nc - 1] = pb[nc - 1] / A2[nc - 1];
-		for (int i = nc - 2; i >= 0; i--) {
-			double* ppAij = pA + i * nc + (i + 1), sum = 0;
-
-			for (int j = i + 1; j < nc; j++) {
-				sum += *ppAij * pX[j];
-				ppAij++;
-			}
-			pX[i] = (pb[i] - sum) / A2[i];
-		}
+		// 使用 OpenCV 内置的 QR 分解求解
+		cv::solve(A, b, X, cv::DECOMP_QR);
 	}
 
 

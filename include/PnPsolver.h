@@ -101,7 +101,7 @@ namespace ORB_SLAM3
 		void find_betas_approx_2(const double* l_6x10, const double* rho, double* betas);
 		void find_betas_approx_3(const double* l_6x10, const double* rho, double* betas);
 
-		void qr_solve(cv::Mat A, cv::Mat b, cv::Mat X);
+		void qr_solve(cv::Mat& A, cv::Mat& b, cv::Mat& X);
 
 		double dot(const double* v1, const double* v2);
 		double dist2(const double* p1, const double* p2);
