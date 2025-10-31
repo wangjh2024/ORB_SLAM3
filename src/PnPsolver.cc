@@ -382,7 +382,7 @@ namespace ORB_SLAM3
 
 
 		// Take C1, C2, and C3 from PCA on the reference points:
-		//CvMat * PW0 = cvCreateMat(number_of_correspondences, 3, CV_64F);
+		//cv::Mat PW0 = cvCreateMat(number_of_correspondences, 3, CV_64F);
 		cv::Mat PW0(3, number_of_correspondences, CV_64F);
 
 		double pw0tpw0[3 * 3], dc[3], uct[3 * 3];
@@ -395,7 +395,7 @@ namespace ORB_SLAM3
 				PW0->data.db[3 * i + j] = pws[3 * i + j] - cws[0][j];
 
 		cvMulTransposed(PW0, &PW0tPW0, 1);
-		cvSVD(&PW0tPW0, &DC, &UCt, 0, CV_SVD_MODIFY_A | CV_SVD_U_T);
+		cv::SVD::compute(&PW0tPW0, &DC, &UCt, 0, CV_SVD_MODIFY_A | CV_SVD_U_T);
 
 		cvReleaseMat(&PW0);
 
@@ -489,7 +489,7 @@ namespace ORB_SLAM3
 		CvMat Ut = cvMat(12, 12, CV_64F, ut);
 
 		cvMulTransposed(M, &MtM, 1);
-		cvSVD(&MtM, &D, &Ut, 0, CV_SVD_MODIFY_A | CV_SVD_U_T);
+		cv::SVD::compute(&MtM, &D, &Ut, 0, CV_SVD_MODIFY_A | CV_SVD_U_T);
 		cvReleaseMat(&M);
 
 		double l_6x10[6 * 10], rho[6];
@@ -604,7 +604,7 @@ namespace ORB_SLAM3
 			}
 		}
 
-		cvSVD(&ABt, &ABt_D, &ABt_U, &ABt_V, CV_SVD_MODIFY_A);
+		cv::SVD::compute(&ABt, &ABt_D, &ABt_U, &ABt_V, CV_SVD_MODIFY_A);
 
 		for (int i = 0; i < 3; i++)
 			for (int j = 0; j < 3; j++)
