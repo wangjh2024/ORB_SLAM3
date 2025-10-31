@@ -81,10 +81,11 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 # 说明：OpenCV/Eigen/Pangolin 若已正确安装到注册的 CMake 路径，可不手动设置 *_DIR。
 set(OpenCV_DIR           "E:/3rd_party/opencv/build/x64/vc16/lib")
 # set(OpenCV_DIR           "E:/3rd_party/opencv/build/")
-
 set(EIGEN3_INCLUDE_DIR   "E:/3rd_party/eigen-3.4.0/include/eigen3")
 set(Pangolin_DIR         "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
-set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0")
+# set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0")
+set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0/lib/cmake/Boost-1.83.0")
+
 # 若 Pangolin 是以 GLEW 构建的，下面的 GLEW_ROOT 可用于 FindGLEW（如需要）
 set(GLEW_ROOT            "E:/3rd_party/glew-2.2.0")
 
@@ -98,15 +99,14 @@ set(GLEW_ROOT            "E:/3rd_party/glew-2.2.0")
 message("OpenCV_ROOT is " ${OpenCV_ROOT})
 find_package(OpenCV REQUIRED)
 if(OpenCV_FOUND)
-  message("OpenCV found.")
+  message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+  message(STATUS "OpenCV include: ${OpenCV_INCLUDE_DIRS}")
 else()
   message(FATAL_ERROR "OpenCV not found.")
 endif()
 
-MESSAGE("OPENCV VERSION:")
-MESSAGE(${OpenCV_VERSION})
-message(STATUS "OpenCV version: ${OpenCV_VERSION}")
-message(STATUS "OpenCV include: ${OpenCV_INCLUDE_DIRS}")
+
+
 
 #=== 2.2 Eigen3（>=3.4.0） ===
 find_package(Eigen3 3.4.0 REQUIRED)
@@ -120,59 +120,62 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 #=== 2.4 Boost（序列化等） ===
-#--- 10.5 Boost （手动配置序列化库，仅做头+库路径检查） -----------------------
 message(STATUS "配置 Boost 库...")
-set(BOOST_INCLUDE_DIR "${BOOST_ROOT}")
-if(NOT EXISTS "${BOOST_INCLUDE_DIR}/boost/serialization/serialization.hpp")
-    message(FATAL_ERROR "✗ Boost 头文件未找到，请检查路径: ${BOOST_INCLUDE_DIR}")
-else()
-    message(STATUS "✓ Boost 头文件目录: ${BOOST_INCLUDE_DIR}")
-endif()
 
-set(BOOST_LIB_PATHS
-    "${BOOST_ROOT}/stage/lib"
-    "${BOOST_ROOT}/lib"
-    "${BOOST_ROOT}/lib64-msvc-14.3"
-)
-set(BOOST_SERIALIZATION_NAMES
-    "boost_serialization-vc143-mt-x64-1_83"
-    "boost_serialization-vc143-mt-x64-1_83.lib"
-    "boost_serialization-vc143-mt-1_83"
-    "boost_serialization-vc143-mt-1_83.lib"
-    "boost_serialization-mt-x64-1_83"
-    "boost_serialization-mt-x64-1_83.lib"
-    "boost_serialization-mt-1_83"
-    "boost_serialization-mt-1_83.lib"
-    "boost_serialization"
-    "boost_serialization.lib"
-    "libboost_serialization"
-    "libboost_serialization.lib"
-)
-find_library(BOOST_SERIALIZATION_LIB
-    NAMES ${BOOST_SERIALIZATION_NAMES}
-    PATHS ${BOOST_LIB_PATHS}
-    NO_DEFAULT_PATH
-)
-if(BOOST_SERIALIZATION_LIB)
-    message(STATUS "✓ 找到 Boost 序列化库: ${BOOST_SERIALIZATION_LIB}")
-    add_library(Boost_serialization INTERFACE IMPORTED)
-    set_target_properties(Boost_serialization PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
-        INTERFACE_LINK_LIBRARIES "${BOOST_SERIALIZATION_LIB}"
-    )
-    set(BOOST_SERIALIZATION_TARGET Boost_serialization)
-    set(Boost_FOUND TRUE)
-    set(Boost_SERIALIZATION_FOUND TRUE)
-else()
-    message(WARNING "✗ 未找到 Boost 序列化库文件，尝试仅使用头文件模式")
-    add_library(Boost_serialization INTERFACE IMPORTED)
-    set_target_properties(Boost_serialization PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${BOOST_INCLUDE_DIR}"
-    )
-    set(BOOST_SERIALIZATION_TARGET Boost_serialization)
-    set(Boost_FOUND TRUE)
-endif()
+# 设置 Boost 根目录
+set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
+set(Boost_ROOT "E:/3rd_party/boost_1_83_0")
 
+# 首先尝试自动查找
+find_package(Boost QUIET COMPONENTS serialization)
+
+if(NOT Boost_FOUND)
+    # 如果自动查找失败，手动配置
+    message(STATUS "自动查找失败，使用手动配置...")
+    
+    # 手动设置包含目录
+    set(BOOST_INCLUDE_DIR "E:/3rd_party/boost_1_83_0")
+    set(Boost_INCLUDE_DIRS "${BOOST_INCLUDE_DIR}")
+    
+    # 验证头文件存在
+    if(EXISTS "${BOOST_INCLUDE_DIR}/boost/serialization/serialization.hpp")
+        message(STATUS "✓ Boost 头文件目录: ${BOOST_INCLUDE_DIR}")
+        
+        # 手动查找库文件
+        set(BOOST_LIB_PATHS
+            "${BOOST_ROOT}/lib64-msvc-14.3"
+            "${BOOST_ROOT}/stage/lib"
+            "${BOOST_ROOT}/lib"
+        )
+        
+        find_library(Boost_SERIALIZATION_LIBRARY
+            NAMES 
+                boost_serialization
+                boost_serialization-vc143-mt-x64-1_83
+                boost_serialization-vc143-mt-x64-1_83.lib
+                libboost_serialization
+            PATHS ${BOOST_LIB_PATHS}
+            NO_DEFAULT_PATH
+        )
+        
+        if(Boost_SERIALIZATION_LIBRARY)
+            message(STATUS "✓ 找到 Boost 序列化库: ${Boost_SERIALIZATION_LIBRARY}")
+            set(Boost_SERIALIZATION_FOUND TRUE)
+            set(Boost_LIBRARIES "${Boost_SERIALIZATION_LIBRARY}")
+        else()
+            message(STATUS "⚠ 未找到 Boost 序列化库，使用仅头文件模式")
+            set(Boost_SERIALIZATION_FOUND FALSE)
+            set(Boost_LIBRARIES "")
+        endif()
+        
+        set(Boost_FOUND TRUE)
+        set(Boost_VERSION 1.83.0)
+    else()
+        message(FATAL_ERROR "✗ Boost 头文件未找到: ${BOOST_INCLUDE_DIR}/boost/serialization/serialization.hpp")
+    endif()
+else()
+    message(STATUS "✓ Boost 自动查找成功: ${Boost_VERSION}")
+endif()
 #=== 2.5 OpenGL / GLEW（Pangolin 常见依赖，尽量查找，有则链接） ===
 find_package(OpenGL REQUIRED)
 # GLEW 不一定总需要；QUIET 查找，找到就链。
@@ -363,6 +366,7 @@ target_include_directories(mono_tum PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include
     ${OpenCV_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
 )
 target_link_libraries(mono_tum PRIVATE ${PROJECT_NAME})
 set_target_properties(mono_tum PROPERTIES
