@@ -78,22 +78,47 @@ find_package(Threads REQUIRED)
 
 #=== 2.4 Boost（序列化等） ===
 message(STATUS "配置 Boost 库...")
-find_package(Boost REQUIRED COMPONENTS serialization)
-if(Boost_FOUND)
-    message(STATUS "✓ Boost version: ${Boost_VERSION}")
-else()
-    # 备用方案：手动配置
-    set(BOOST_LIBRARY_DIR "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3")
-    set(BOOST_SERIALIZATION_LIB "${BOOST_LIBRARY_DIR}/libboost_serialization-vc143-mt-s-x64-1_83.lib")
+# 设置正确的 Boost 路径
+set(Boost_ROOT "E:/3rd_party/boost_1_83_0")
+set(BOOST_LIBRARY_DIR "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3")
+
+# 根据图片中的实际文件名配置
+set(BOOST_SERIALIZATION_LIB 
+    "${BOOST_LIBRARY_DIR}/libboost_serialization-vc143-mt-s-x64-1_83.lib"
+)
+
+# 验证库文件是否存在
+if(EXISTS "${BOOST_SERIALIZATION_LIB}")
+    message(STATUS "✓ Boost 序列化库找到: ${BOOST_SERIALIZATION_LIB}")
     
-    if(EXISTS "${BOOST_SERIALIZATION_LIB}")
-        set(Boost_SERIALIZATION_LIBRARY "${BOOST_SERIALIZATION_LIB}")
-        set(Boost_SERIALIZATION_FOUND TRUE)
-        set(Boost_INCLUDE_DIRS "E:/3rd_party/boost_1_83_0")
-        message(STATUS "✓ Boost 手动配置成功")
-    else()
-        message(FATAL_ERROR "✗ Boost 库未找到")
-    endif()
+    # 手动配置 Boost
+    set(Boost_FOUND TRUE)
+    set(Boost_VERSION 1.83.0)
+    set(Boost_INCLUDE_DIRS "E:/3rd_party/boost_1_83_0")
+    set(Boost_LIBRARY_DIRS "${BOOST_LIBRARY_DIR}")
+    set(Boost_SERIALIZATION_LIBRARY "${BOOST_SERIALIZATION_LIB}")
+    set(Boost_SERIALIZATION_FOUND TRUE)
+    
+    # 创建导入目标（现代 CMake 方式）
+    add_library(Boost::serialization UNKNOWN IMPORTED)
+    set_target_properties(Boost::serialization PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}"
+        IMPORTED_LOCATION "${Boost_SERIALIZATION_LIBRARY}"
+    )
+    
+    message(STATUS "✓ Boost 1.83.0 手动配置成功")
+    message(STATUS "  Include: ${Boost_INCLUDE_DIRS}")
+    message(STATUS "  Library: ${Boost_SERIALIZATION_LIBRARY}")
+    
+else()
+    message(FATAL_ERROR "
+✗ Boost 序列化库未找到！
+期望路径: ${BOOST_SERIALIZATION_LIB}
+请检查：
+1. 文件是否存在
+2. 文件名是否与图片中一致
+3. 路径是否正确
+    ")
 endif()
 
 #=== 2.5 GLEW ===
