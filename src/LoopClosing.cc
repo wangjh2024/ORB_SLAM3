@@ -1241,7 +1241,11 @@ namespace ORB_SLAM3
 			mbFinishedGBA = false;
 			mbStopGBA = false;
 
-			mpThreadGBA = new thread(&LoopClosing::RunGlobalBundleAdjustment, this, pLoopMap, mpCurrentKF->mnId);
+			// 优化：使用智能指针
+			auto gbaThread = std::make_unique<std::thread>(
+				&LoopClosing::RunGlobalBundleAdjustment, this, pLoopMap, mpCurrentKF->mnId
+			);
+			mpThreadGBA = gbaThread.release();
 		}
 
 		// Loop closed. Release Local Mapping.

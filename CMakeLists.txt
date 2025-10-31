@@ -25,7 +25,20 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
+# MSVC 特定设置
+if(MSVC)
+    # 禁用严格的分配器检查
+    add_definitions(-D_ENFORCE_MATCHING_ALLOCATORS=0)
+    add_compile_options(/Zc:allocatorCompat-)
+    
+    # 禁用特定警告
+    add_compile_options(/wd4244)  # 类型转换警告
+    add_compile_options(/wd4267)  # size_t 转换警告
+    add_compile_options(/wd4996)  # 安全警告
+    
+    # 设置运行时库（根据你的选择）
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 #=== 0.4 额外编译选项与宏 ===
 if(MSVC)
   add_compile_options(/W0 /bigobj)
