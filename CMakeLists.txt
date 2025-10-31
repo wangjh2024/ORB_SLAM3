@@ -13,7 +13,32 @@ if(MSVC)
   endif()
   # 与你原先设置一致：Release 用 /MT，Debug 用 /MTd
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()# 在 MSVC 编译选项部分添加
+
+if(MSVC)
+    # 禁用严格的分配器检查
+    add_definitions(-D_ENFORCE_MATCHING_ALLOCATORS=0)
+    add_compile_options(/Zc:allocatorCompat-)
+    
+    # 强制单线程编译，避免 PDB 冲突
+    add_compile_options(/MP1)
+    add_compile_options(/FS)
+    
+    # 或者禁用调试信息（如果不需要调试）
+    # add_compile_options(/Z7)  # 使用旧式调试信息
+    
+    # 禁用特定警告
+    add_compile_options(/wd4244)  # 类型转换警告
+    add_compile_options(/wd4267)  # size_t 转换警告
+    add_compile_options(/wd4996)  # 安全警告
 endif()
+
+# 为每个源文件设置独立的 PDB
+if(MSVC)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "Embedded")
+    set(CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()
+
 
 #=== 0.2 构建类型（默认 Release） ===
 if(NOT CMAKE_BUILD_TYPE)
@@ -54,7 +79,9 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 #=== 1. 第三方依赖路径（按需修改为你的实际路径） ================================
 #==============================================================================
 # 说明：OpenCV/Eigen/Pangolin 若已正确安装到注册的 CMake 路径，可不手动设置 *_DIR。
-set(OpenCV_DIR           "E:/3rd_party/opencv/build")
+set(OpenCV_DIR           "E:/3rd_party/opencv/build/x64/vc16/lib")
+# set(OpenCV_DIR           "E:/3rd_party/opencv/build/")
+
 set(EIGEN3_INCLUDE_DIR   "E:/3rd_party/eigen-3.4.0/include/eigen3")
 set(Pangolin_DIR         "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
 set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0")
@@ -66,7 +93,18 @@ set(GLEW_ROOT            "E:/3rd_party/glew-2.2.0")
 #==============================================================================
 
 #=== 2.1 OpenCV（>=4） ===
-find_package(OpenCV 4 REQUIRED)
+# find_package(OpenCV 4 REQUIRED)
+# set(OpenCV_ROOT "D:/CODE-STUDY/_installed/opencv-4.x/x64/vc17/lib")
+message("OpenCV_ROOT is " ${OpenCV_ROOT})
+find_package(OpenCV REQUIRED)
+if(OpenCV_FOUND)
+  message("OpenCV found.")
+else()
+  message(FATAL_ERROR "OpenCV not found.")
+endif()
+
+MESSAGE("OPENCV VERSION:")
+MESSAGE(${OpenCV_VERSION})
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 message(STATUS "OpenCV include: ${OpenCV_INCLUDE_DIRS}")
 
@@ -242,6 +280,7 @@ add_library(${PROJECT_NAME} SHARED
 #==============================================================================
 target_include_directories(${PROJECT_NAME} PRIVATE
   ${OpenCV_INCLUDE_DIRS}
+  # E:/3rd_party/opencv/build/include  # 手动指定 OpenCV 包含目录
   ${Boost_INCLUDE_DIRS}
 )
 
@@ -249,29 +288,36 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 #=== 7. 链接依赖 ===============================================================
 #==============================================================================
 # 注：DBoW2 / g2o 目前写死了 Release 路径，请用 Release 配置编译本项目。
+# 删除这一行（第252行）：
+# target_link_libraries(${PROJECT_NAME} opencv_core opencv_imgproc opencv_highgui opencv_features2d opencv_calib3d)
+
+# 保留这一部分（第254-269行）：
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
-    ${OpenCV_LIBS}
+    ${OpenCV_LIBRARIES}
+    # OpenCV 核心库
+    # E:/3rd_party/opencv/build/x64/vc16/lib/opencv_world4100.lib
+
     ${PANGOLIN_TARGET}
     Threads::Threads
     Eigen3::Eigen
     ${BOOST_SERIALIZATION_TARGET}
     OpenGL::GL
-
-    # GLEW 可选：找到才链接
     $<$<TARGET_EXISTS:GLEW::GLEW>:GLEW::GLEW>
-
-    # 第三方静态库（请确保与本工程配置/运行库一致）
     ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/Release/DBoW2.lib
     ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release/g2o.lib
 )
-
 #==============================================================================
 #=== 8. 示例程序（分别设置各自的输出目录） =====================================
 #==============================================================================
 
 #--- 8.1 RGB-D -----------------------------------------------------------------
 add_executable(rgbd_tum Examples/RGB-D/rgbd_tum.cc)
+target_include_directories(rgbd_tum PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(rgbd_tum PRIVATE ${PROJECT_NAME})
 set_target_properties(rgbd_tum PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/RGB-D"
@@ -279,18 +325,33 @@ set_target_properties(rgbd_tum PROPERTIES
 
 #--- 8.2 Stereo ----------------------------------------------------------------
 add_executable(stereo_kitti Examples/Stereo/stereo_kitti.cc)
+target_include_directories(stereo_kitti PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(stereo_kitti PRIVATE ${PROJECT_NAME})
 set_target_properties(stereo_kitti PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo"
 )
 
 add_executable(stereo_euroc Examples/Stereo/stereo_euroc.cc)
+target_include_directories(stereo_euroc PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(stereo_euroc PRIVATE ${PROJECT_NAME})
 set_target_properties(stereo_euroc PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo"
 )
 
 add_executable(stereo_tum_vi Examples/Stereo/stereo_tum_vi.cc)
+target_include_directories(stereo_tum_vi PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(stereo_tum_vi PRIVATE ${PROJECT_NAME})
 set_target_properties(stereo_tum_vi PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo"
@@ -298,24 +359,44 @@ set_target_properties(stereo_tum_vi PROPERTIES
 
 #--- 8.3 Monocular --------------------------------------------------------------
 add_executable(mono_tum Examples/Monocular/mono_tum.cc)
+target_include_directories(mono_tum PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(mono_tum PRIVATE ${PROJECT_NAME})
 set_target_properties(mono_tum PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
 )
 
 add_executable(mono_kitti Examples/Monocular/mono_kitti.cc)
+target_include_directories(mono_kitti PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(mono_kitti PRIVATE ${PROJECT_NAME})
 set_target_properties(mono_kitti PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
 )
 
 add_executable(mono_euroc Examples/Monocular/mono_euroc.cc)
+target_include_directories(mono_euroc PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(mono_euroc PRIVATE ${PROJECT_NAME})
 set_target_properties(mono_euroc PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
 )
 
 add_executable(mono_tum_vi Examples/Monocular/mono_tum_vi.cc)
+target_include_directories(mono_tum_vi PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(mono_tum_vi PRIVATE ${PROJECT_NAME})
 set_target_properties(mono_tum_vi PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
@@ -323,12 +404,22 @@ set_target_properties(mono_tum_vi PROPERTIES
 
 #--- 8.4 Monocular-Inertial ----------------------------------------------------
 add_executable(mono_inertial_euroc Examples/Monocular-Inertial/mono_inertial_euroc.cc)
+target_include_directories(mono_inertial_euroc PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(mono_inertial_euroc PRIVATE ${PROJECT_NAME})
 set_target_properties(mono_inertial_euroc PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular-Inertial"
 )
 
 add_executable(mono_inertial_tum_vi Examples/Monocular-Inertial/mono_inertial_tum_vi.cc)
+target_include_directories(mono_inertial_tum_vi PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(mono_inertial_tum_vi PRIVATE ${PROJECT_NAME})
 set_target_properties(mono_inertial_tum_vi PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular-Inertial"
@@ -336,20 +427,27 @@ set_target_properties(mono_inertial_tum_vi PROPERTIES
 
 #--- 8.5 Stereo-Inertial -------------------------------------------------------
 add_executable(stereo_inertial_euroc Examples/Stereo-Inertial/stereo_inertial_euroc.cc)
+target_include_directories(stereo_inertial_euroc PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(stereo_inertial_euroc PRIVATE ${PROJECT_NAME})
 set_target_properties(stereo_inertial_euroc PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo-Inertial"
 )
 
 add_executable(stereo_inertial_tum_vi Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
+target_include_directories(stereo_inertial_tum_vi PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${OpenCV_INCLUDE_DIRS}
+)
 target_link_libraries(stereo_inertial_tum_vi PRIVATE ${PROJECT_NAME})
 set_target_properties(stereo_inertial_tum_vi PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Stereo-Inertial"
 )
 
 #==============================================================================
-#=== 9. 备注与提示 =============================================================
-#==============================================================================
-# 1) 你已将 OpenCV 升级到 4.x，请将源码里的旧头 <opencv/cv.h> 改为 <opencv2/opencv.hpp>。
-# 2) 当前链接的 DBoW2/g2o 为 Release 目录的 .lib，请用 Release 配置构建本工程。
-# 3) 运行期请将 E:/3rd_party/opencv/build/x64/vc16/bin 等加入 PATH，避免找不到 DLL。
+
+
