@@ -10,11 +10,17 @@ if(MSVC)
     if(POLICY CMP0091)
         cmake_policy(SET CMP0091 NEW)
     endif()
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-    
+    # set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # 统一使用 /MD (Release) 与 /MDd (Debug)，与用 b2 构建的 Boost 动态运行时一致
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+
     # MSVC 编译选项
+    # add_definitions(-D_ENFORCE_MATCHING_ALLOCATORS=0)
+    # add_compile_options(/Zc:allocatorCompat- /MP1 /FS /W0 /bigobj)
+
     add_definitions(-D_ENFORCE_MATCHING_ALLOCATORS=0)
-    add_compile_options(/Zc:allocatorCompat- /MP1 /FS /W0 /bigobj)
+    # /Zc:allocatorCompat- 是无效选项（D9002 警告源头），删掉它
+    add_compile_options(/MP1 /FS /W0 /bigobj)
     add_compile_options(/wd4244 /wd4267 /wd4996)  # 禁用特定警告
     
     # PDB 设置
@@ -40,21 +46,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 #=== 0.4 宏定义 ===
 add_definitions(-DCOMPILEDWITHC11 -DORB_SLAM3_EXPORTS)
 
-#==============================================================================
-#=== 1. 第三方依赖路径配置 =====================================================
-#==============================================================================
+
 # 设置依赖库路径
 set(OpenCV_DIR "E:/3rd_party/opencv/build/x64/vc16/lib")
 set(Pangolin_DIR "E:/3rd_party/pangolin-install/lib/cmake/Pangolin") 
 set(GLEW_ROOT "E:/3rd_party/glew-2.2.0")
-# set(Boost_ROOT "E:/3rd_party/boost_1_83_0/lib64-msvc-14.3/cmake/Boost-1.83.0")
-# set(BOOST_ROOT "E:/3rd_party/boost_1_83_0")
 
-# E:/3rd_party/boost_1_83_0/stage/lib/cmake/Boost-1.83.0
-# E:/3rd_party/boost_1_83_0/lib64-msvc-14.3/cmake/Boost-1.83.0
-#==============================================================================
 #=== 2. 查找第三方依赖 =========================================================
-#==============================================================================
 
 #=== 2.1 OpenCV ===
 find_package(OpenCV REQUIRED)
@@ -79,23 +77,41 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 #=== 2.4 Boost（序列化等） ===
+#=== 2.4 Boost（序列化等） ===
 # 清除缓存变量（重要！）
 unset(BOOST_INCLUDE_DIR CACHE)
 unset(BOOST_LIBRARY_DIRS CACHE)
 message(STATUS "配置 Boost 库...")
 
-set(Boost_ROOT "E:/3rd_party/00installed/boost_1_83_0_install/lib/cmake/Boost-1.83.0")
+# 指向 b2 install 的安装前缀（与你执行 .\b2 install --prefix=... 一致）
+set(BOOST_ROOT       "E:/3rd_party/00installed/boost_1_83_0_install")
+set(BOOST_INCLUDEDIR "${BOOST_ROOT}/include")
+set(BOOST_LIBRARYDIR "${BOOST_ROOT}/lib")
 
-message("Boost_ROOT is " ${Boost_ROOT})
-find_package(Boost REQUIRED COMPONENTS serialization)
+# 避免 #pragma comment(lib, ...) 自动链接干扰（可选）
+add_definitions(-DBOOST_ALL_NO_LIB)
+
+# 需要的组件
+set(_boost_components
+    serialization
+    system
+    filesystem
+    chrono
+    thread
+    date_time
+    regex
+)
+
+find_package(Boost 1.83.0 REQUIRED COMPONENTS ${_boost_components})
 if(Boost_FOUND)
-  message(STATUS "Boost Found: ${Boost_VERSION}")
-  message(STATUS "Serialization: ${Boost_SERIALIZATION_LIBRARY}")
+  message(STATUS "✓ Boost Found: ${Boost_VERSION}")
+  message(STATUS "  Include: ${Boost_INCLUDE_DIRS}")
+  message(STATUS "  Libs   : ${Boost_LIBRARY_DIRS}")
   include_directories(${Boost_INCLUDE_DIRS})
+  link_directories(${Boost_LIBRARY_DIRS})
 else()
-  message(FATAL_ERROR "Boost not found.")
+  message(FATAL_ERROR "✗ Boost not found.")
 endif()
-
 
 #=== 2.5 GLEW ===
 find_package(GLEW QUIET)
@@ -210,26 +226,39 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 #==============================================================================
 #=== 7. 链接依赖 ===============================================================
 #==============================================================================
-# 注：DBoW2 / g2o 目前写死了 Release 路径，请用 Release 配置编译本项目。
-# 删除这一行（第252行）：
-# target_link_libraries(${PROJECT_NAME} opencv_core opencv_imgproc opencv_highgui opencv_features2d opencv_calib3d)
+# 构造 Boost 链接列表（优先使用 imported targets，若不存在则回退到 ${Boost_LIBRARIES}）
+set(_boost_link_libs
+    Boost::serialization
+    Boost::system
+    Boost::filesystem
+    Boost::chrono
+    Boost::thread
+    Boost::date_time
+    Boost::regex
+)
+set(_use_boost_vars FALSE)
+foreach(_tgt IN LISTS _boost_link_libs)
+    if(NOT TARGET ${_tgt})
+        set(_use_boost_vars TRUE)
+    endif()
+endforeach()
 
-# 保留这一部分（第254-269行）：
+# 保留这一部分（第254-269行）并插入 Boost 正确链接
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
     ${OpenCV_LIBRARIES}
-    # OpenCV 核心库
-    # E:/3rd_party/opencv/build/x64/vc16/lib/opencv_world4100.lib
-
     ${PANGOLIN_TARGET}
     Threads::Threads
     Eigen3::Eigen
-    ${Boost_SERIALIZATION_LIBRARY}
+    $<$<BOOL:${_use_boost_vars}>:${Boost_LIBRARIES}>
+    $<$<NOT:$<BOOL:${_use_boost_vars}>>:${_boost_link_libs}>
     # OpenGL::GL
     $<$<TARGET_EXISTS:GLEW::GLEW>:GLEW::GLEW>
     ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/Release/DBoW2.lib
     ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/bin/Release/g2o.lib
 )
+
+
 #==============================================================================
 #=== 8. 示例程序（分别设置各自的输出目录） =====================================
 #==============================================================================
@@ -242,7 +271,11 @@ target_include_directories(mono_tum PRIVATE
     ${OpenCV_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
 )
-target_link_libraries(mono_tum PRIVATE ${PROJECT_NAME})
+target_link_libraries(mono_tum PRIVATE
+    ${PROJECT_NAME}
+    $<$<BOOL:${_use_boost_vars}>:${Boost_LIBRARIES}>
+    $<$<NOT:$<BOOL:${_use_boost_vars}>>:${_boost_link_libs}>
+)
 set_target_properties(mono_tum PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/Examples/Monocular"
 )
