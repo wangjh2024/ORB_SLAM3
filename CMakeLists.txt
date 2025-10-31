@@ -80,10 +80,7 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 #==============================================================================
 # 说明：OpenCV/Eigen/Pangolin 若已正确安装到注册的 CMake 路径，可不手动设置 *_DIR。
 set(OpenCV_DIR           "E:/3rd_party/opencv/build/x64/vc16/lib")
-set(EIGEN3_INCLUDE_DIR   "E:/3rd_party/eigen-3.4.0-install/share/eigen3/cmake")
 set(Pangolin_DIR         "E:/3rd_party/pangolin-install/lib/cmake/Pangolin")
-# set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0")
-# set(BOOST_ROOT           "E:/3rd_party/boost_1_83_0/lib/cmake/Boost-1.83.0")
 set(GLEW_ROOT            "E:/3rd_party/glew-2.2.0")
 
 #==============================================================================
@@ -100,10 +97,38 @@ endif()
 
 #=== 2.2 Eigen3（手动配置） ===
 message(STATUS "配置 Eigen3...")
-set(EIGEN3_INCLUDE_DIR   "E:/3rd_party/eigen-3.4.0-install/share/eigen3/cmake")
+# Find Eigen3
+# 先清除可能的缓存变量
+unset(EIGEN3_INCLUDE_DIR CACHE)
+unset(Eigen3_DIR CACHE)
+# 添加 Eigen3 的 CMake 配置路径
+list(APPEND CMAKE_PREFIX_PATH "E:/3rd_party/eigen-3.4.0-install/share/eigen3/cmake")
+# 可选：添加头文件搜索路径
+list(APPEND CMAKE_INCLUDE_PATH "E:/3rd_party/eigen-3.4.0-install/include")
 
-find_package(Eigen3 REQUIRED)
+# 查找 Eigen3
+find_package(Eigen3 3.4.0 REQUIRED)
 
+# 检查是否找到
+if(Eigen3_FOUND)
+    message(STATUS "Eigen3 version: ${Eigen3_VERSION}")
+    message(STATUS "Eigen3 include dir: ${EIGEN3_INCLUDE_DIR}")
+    
+    # 设置 G2O 需要的变量
+    set(G2O_EIGEN3_INCLUDE ${EIGEN3_INCLUDE_DIR} CACHE PATH "Directory of Eigen3")
+    
+    # 标记为高级变量（在 CMake GUI 中隐藏）
+    mark_as_advanced(G2O_EIGEN3_INCLUDE)
+else()
+    # 提供详细的错误信息和解决方案
+    message(FATAL_ERROR "
+Eigen3 not found! 
+Please check:
+1. The path: E:/3rd_party/eigen-3.4.0-install/share/eigen3/cmake
+2. Ensure Eigen3 is properly installed
+3. Try setting EIGEN3_ROOT environment variable
+    ")
+endif()
 
 message(STATUS "✓ Eigen3 配置完成")
 
