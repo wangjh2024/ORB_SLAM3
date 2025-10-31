@@ -77,6 +77,7 @@ message(STATUS "✓ Eigen3 version: ${Eigen3_VERSION}")
 #=== 2.3 线程库（Windows 不使用 pthread，日志提示可忽略） ===
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+
 message(STATUS "✓ Threads available")
 
 #=== 2.4 Boost（使用 FindBoost 现代目标） ===
